@@ -46,11 +46,11 @@ export async function handleVoteEnd(
       fields: [
         {
           name: "Zugestimmt",
-          value: usersAccepted,
+          value: String(usersAccepted),
         },
         {
           name: "Abgelehnt",
-          value: usersDeclined,
+          value: String(usersDeclined),
         },
       ],
     };
