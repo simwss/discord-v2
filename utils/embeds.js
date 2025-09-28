@@ -177,7 +177,7 @@ export function createNoMinersEmbed() {
 }
 
 // Profile Embed
-export function createProfileEmbed(userData, alcoholLevel) {
+export function createProfileEmbed(userData) {
   return new EmbedBuilder()
     .setTitle("Dein Profil")
     .setFields([
@@ -188,10 +188,6 @@ export function createProfileEmbed(userData, alcoholLevel) {
       {
         name: "Miner",
         value: `Basic Miners: **${userData.basicMiners || 0}**\nElite Miners: **${userData.eliteMiners || 0}**\nDeluxe Miner: **${userData.deluxeMiners || 0}**`,
-      },
-      {
-        name: "Blutalkoholspiegel",
-        value: `**${alcoholLevel}‰**`,
       },
     ])
     .setColor(EMBED_COLORS.INFO);

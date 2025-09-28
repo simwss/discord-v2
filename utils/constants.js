@@ -78,7 +78,6 @@ export const DEFAULT_USER_DATA = {
   basicMiners: 0,
   eliteMiners: 0,
   deluxeMiners: 0,
-  grammAlcohol: 0
 };
 
 // Error Messages
