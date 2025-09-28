@@ -1,5 +1,4 @@
 import { ref, get, update } from "firebase/database";
-import { formatUsers } from "../utils/utils.js";
 import { isUserAuthorised } from "../services/authorisation.js";
 
 export async function handleVoteEnd(
@@ -47,11 +46,11 @@ export async function handleVoteEnd(
       fields: [
         {
           name: "Zugestimmt",
-          value: formatUsers(usersAccepted),
+          value: usersAccepted,
         },
         {
           name: "Abgelehnt",
-          value: formatUsers(usersDeclined),
+          value: usersDeclined,
         },
       ],
     };

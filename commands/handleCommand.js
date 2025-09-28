@@ -9,7 +9,6 @@ import { handleWork, handleDaily, handleWeekly } from "./workCommands.js";
 import { handleRoulette } from "./roulette.js";
 import { handleSend } from "./send.js";
 import { handleBuy } from "./buy.js";
-import { handleDrink } from "./drink.js";
 import { handleCollect } from "./collect.js";
 import { handlePlinkoball } from "./plinkoball.js";
 import { handleSlots } from "./slots.js";
@@ -30,7 +29,6 @@ const COMMANDS_MAP = new Map([
   ["roulette", handleRoulette],
   ["send", handleSend],
   ["buy", handleBuy],
-  ["drink", handleDrink],
   ["collect", handleCollect],
   ["plinkoball", handlePlinkoball],
   ["slots", handleSlots],

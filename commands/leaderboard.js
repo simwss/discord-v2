@@ -1,11 +1,11 @@
 import { ref, get } from "firebase/database";
-import { LEADERBOARD } from "../utils/constants.js";
+import { GAME_CONFIG } from "../utils/constants.js";
 import { createLeaderboardEmbed, createErrorEmbed } from "../utils/embeds.js";
 
 export async function handleLeaderboard(interaction, db, currentUserId) {
   try {
     await interaction.deferReply();
-
+    const LEADERBOARD = GAME_CONFIG.LEADERBOARD
     const gambleRef = ref(db, `users`);
     const gambleSnapshot = await get(gambleRef);
 

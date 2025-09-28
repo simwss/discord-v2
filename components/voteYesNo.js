@@ -1,5 +1,4 @@
 import { ref, get, update } from "firebase/database";
-import { formatUsers } from "../utils/utils.js";
 
 export async function handleVoteYesNo(
   interaction,
@@ -49,11 +48,11 @@ export async function handleVoteYesNo(
       fields: [
         {
           name: "Zugestimmt",
-          value: formatUsers(usersAccepted),
+          value: usersAccepted,
         },
         {
           name: "Abgelehnt",
-          value: formatUsers(usersDeclined),
+          value: usersDeclined,
         },
       ],
     };

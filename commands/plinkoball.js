@@ -1,10 +1,10 @@
-import { ref, get, set } from "firebase/database";
+import { ref, set } from "firebase/database";
 import { ensureUserExists, validateBet } from "../utils/utils.js";
-import { PLINKOBALL_MULTIPLIERS } from "../utils/constants.js";
+import { GAME_CONFIG } from "../utils/constants.js";
 
 export async function handlePlinkoball(interaction, db, currentUserId) {
   const value = interaction.options.getInteger("betrag");
-  const multipliers = PLINKOBALL_MULTIPLIERS;
+  const multipliers = GAME_CONFIG.PLINKOBALL_MULTIPLIERS;
 
   const gambleUser = await ensureUserExists(db, currentUserId, interaction);
   const gambleRef = ref(db, `users/${currentUserId}`);

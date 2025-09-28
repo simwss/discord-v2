@@ -1,12 +1,12 @@
 import { ref, get, set } from "firebase/database";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { ensureUserExists, validateBet } from "../utils/utils.js";
-import { SLOTS } from "../utils/constants.js";
+import { GAME_CONFIG } from "../utils/constants.js";
 import { createSlotEmbed } from "../utils/embeds.js";
 
 export async function handleSlots(interaction, db, currentUserId) {
   const bet = interaction.options.getInteger("betrag");
-
+  const SLOTS = GAME_CONFIG.SLOTS
   const user = await ensureUserExists(db, currentUserId, interaction);
   const userRef = ref(db, `users/${currentUserId}`);
 
