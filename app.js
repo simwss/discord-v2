@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Client, GatewayIntentBits } from "discord.js";
-import { handleCommand } from "./commands/index.js";
+import { handleCommand } from "./commands/handleCommand.js";
 import { handleComponent } from "./components/index.js";
 import { handleMessage } from "./messages/index.js";
 import { db } from "./firebaseConfig.js";
