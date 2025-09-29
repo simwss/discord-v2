@@ -5,6 +5,11 @@ import { GAME_CONFIG } from "../utils/constants.js";
 import { createSlotEmbed } from "../utils/embeds.js";
 
 export async function handleSlots(interaction, db, currentUserId) {
+  let spinningInterval;
+  let isCollectorActive = true;
+  let currentSlotResults = [];
+  let message;
+
   try {
     const bet = interaction.options.getInteger("betrag");
     const SLOTS = GAME_CONFIG.SLOTS;
@@ -43,27 +48,23 @@ export async function handleSlots(interaction, db, currentUserId) {
       .setStyle(ButtonStyle.Danger);
     const actionRow = new ActionRowBuilder().addComponents(stopButton);
 
-    // Use withResponse instead of fetchReply to fix the deprecation warning
-    const message = await interaction.reply({
+    // Use the new withResponse method to fix deprecation warning
+    const response = await interaction.reply({
       embeds: [embed],
       components: [actionRow],
-      fetchReply: true // Keep this for now, but we'll fix the channel caching issue
+      withResponse: true
     });
 
-    let spinningInterval;
-    let isCollectorActive = true;
-    let currentSlotResults = Array.from(
+    message = response.message;
+    currentSlotResults = Array.from(
       { length: 3 },
       () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
     );
 
-    // Store channel reference separately
-    const channel = interaction.channel;
-
     // Spinning animation function
     async function updateSpinningAnimation() {
       try {
-        if (!isCollectorActive) return;
+        if (!isCollectorActive || !message) return;
 
         // Update the current slot results
         currentSlotResults = Array.from(
@@ -75,24 +76,26 @@ export async function handleSlots(interaction, db, currentUserId) {
         
         console.log("Updating slots display:", currentSlotResults);
         
-        // Use channel.messages.edit instead of message.edit to avoid caching issues
-        await channel.messages.edit(message.id, {
+        // Use interaction.editReply for updates since we have the original interaction
+        await interaction.editReply({
           embeds: [spinningEmbed],
           components: [actionRow],
         });
       } catch (error) {
         console.error("Error updating spinning animation:", error);
         // If editing fails, stop the animation
-        clearInterval(spinningInterval);
+        if (spinningInterval) {
+          clearInterval(spinningInterval);
+        }
         isCollectorActive = false;
       }
     }
 
     // Start spinning animation immediately
-    await updateSpinningAnimation(); // Show first spin immediately
+    await updateSpinningAnimation();
     spinningInterval = setInterval(updateSpinningAnimation, 1000);
 
-    // Create collector on the actual message
+    // Create collector using the interaction
     const filter = (i) => {
       return i.customId === `slots_stop_${currentUserId}_${bet}` && 
              i.user.id === currentUserId;
@@ -110,7 +113,9 @@ export async function handleSlots(interaction, db, currentUserId) {
       // Immediately acknowledge the interaction
       await i.deferUpdate();
       
-      clearInterval(spinningInterval);
+      if (spinningInterval) {
+        clearInterval(spinningInterval);
+      }
       collector.stop();
 
       try {
@@ -147,7 +152,6 @@ export async function handleSlots(interaction, db, currentUserId) {
           winAmount
         );
 
-        // Use the original interaction to edit the reply
         await i.editReply({
           embeds: [resultEmbed],
           components: [],
@@ -164,14 +168,15 @@ export async function handleSlots(interaction, db, currentUserId) {
 
     collector.on('end', async (collected, reason) => {
       isCollectorActive = false;
-      clearInterval(spinningInterval);
+      if (spinningInterval) {
+        clearInterval(spinningInterval);
+      }
       
       // Clean up if collector ends without collection (timeout)
       if (reason === 'time') {
         try {
           await set(gameRef, null);
-          // Use channel.messages.edit for cleanup too
-          await channel.messages.edit(message.id, {
+          await interaction.editReply({
             content: "⏰ Slot-Spiel abgelaufen. Starte ein neues Spiel!",
             components: [],
           });
@@ -183,6 +188,11 @@ export async function handleSlots(interaction, db, currentUserId) {
 
   } catch (error) {
     console.error("Error in handleSlots:", error);
+    
+    // Clean up intervals on error
+    if (spinningInterval) {
+      clearInterval(spinningInterval);
+    }
     
     try {
       if (interaction.replied || interaction.deferred) {
