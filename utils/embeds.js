@@ -218,3 +218,59 @@ export function createAuthEmbed(title, description, color = EMBED_COLORS.INFO) {
     .setDescription(description)
     .setColor(color);
 }
+// Updated createSlotEmbed function (add this to your embeds.js)
+export function createSlotEmbed(slotResults, bet, status, balance = null, winAmount = 0) {
+  const slotDisplay = slotResults.length > 0 ? slotResults.join(" ") : "🎰 🎰 🎰";
+  
+  let title, color, description;
+  
+  switch (status) {
+    case "spinning":
+      title = "🎰 Slots - Dreht...";
+      color = 0xFFFF00; // Yellow
+      description = "Drücke **Stop** um die Walzen anzuhalten!";
+      break;
+    case "won":
+      title = "🎰 Slots - Gewonnen! 🎉";
+      color = 0x00FF00; // Green
+      description = `**Gewinn: ${winAmount}$**`;
+      break;
+    case "lost":
+      title = "🎰 Slots - Verloren 😔";
+      color = 0xFF0000; // Red
+      description = "Viel Glück beim nächsten Mal!";
+      break;
+    default:
+      title = "🎰 Slots";
+      color = 0x0099FF; // Blue
+  }
+
+  const embed = {
+    title,
+    color,
+    description,
+    fields: [
+      {
+        name: "Slot",
+        value: slotDisplay,
+        inline: false,
+      },
+      {
+        name: "Einsatz",
+        value: `${bet}$`,
+        inline: true,
+      },
+    ],
+    timestamp: new Date(),
+  };
+
+  if (balance !== null) {
+    embed.fields.push({
+      name: "Kontostand",
+      value: `${balance}$`,
+      inline: true,
+    });
+  }
+
+  return embed;
+}
