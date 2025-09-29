@@ -109,27 +109,7 @@ export function createPlinkoballEmbed(board, bet, multiplier = null, payout = nu
   return createGameEmbed("Plinkoball", fields);
 }
 
-export function createSlotEmbed(symbols, bet, balance = null) {
-  const fields = [
-    {
-      name: "Slot",
-      value: symbols.join(" "),
-    },
-    {
-      name: "Einsatz",
-      value: `${bet}$`,
-    }
-  ];
 
-  if (balance !== null) {
-    fields.push({
-      name: "Kontostand",
-      value: `${balance}$`,
-    });
-  }
-
-  return createGameEmbed("Slots", fields);
-}
 
 export function createRouletteEmbed(payouts, bet) {
   return createGameEmbed("Roulette", [
