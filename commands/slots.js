@@ -51,24 +51,36 @@ export async function handleSlots(interaction, db, currentUserId) {
 
     let spinningInterval;
     let isCollectorActive = true;
+    let currentSlotResults = Array.from(
+      { length: 3 },
+      () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
+    );
 
     // Spinning animation function
-    function updateSpinningAnimation() {
-      const slotResults = Array.from(
-        { length: 3 },
-        () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
-      );
-      
-      const spinningEmbed = createSlotEmbed(slotResults, bet, "spinning");
-      
-      // Use message.edit instead of interaction.editReply for updates
-      message.edit({
-        embeds: [spinningEmbed],
-        components: [actionRow],
-      }).catch(console.error);
+    async function updateSpinningAnimation() {
+      try {
+        // Update the current slot results
+        currentSlotResults = Array.from(
+          { length: 3 },
+          () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
+        );
+        
+        const spinningEmbed = createSlotEmbed(currentSlotResults, bet, "spinning");
+        
+        console.log("Updating slots display:", currentSlotResults);
+        
+        // Update the message
+        await message.edit({
+          embeds: [spinningEmbed],
+          components: [actionRow],
+        });
+      } catch (error) {
+        console.error("Error updating spinning animation:", error);
+      }
     }
 
-    // Start spinning animation
+    // Start spinning animation immediately
+    updateSpinningAnimation(); // Show first spin immediately
     spinningInterval = setInterval(updateSpinningAnimation, 1000);
 
     // Create collector on the actual message
@@ -93,11 +105,10 @@ export async function handleSlots(interaction, db, currentUserId) {
       collector.stop();
 
       try {
-        // Generate final results
-        const finalSlotResults = Array.from(
-          { length: 3 },
-          () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
-        );
+        // Use the CURRENT slot results that were showing when button was pressed
+        const finalSlotResults = [...currentSlotResults];
+
+        console.log("Final slot results:", finalSlotResults);
 
         // Calculate payout
         let payoutMultiplier = -1; // Default to loss

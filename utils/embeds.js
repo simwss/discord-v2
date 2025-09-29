@@ -225,11 +225,12 @@ export function createSlotEmbed(slotResults, bet, status, balance = null, winAmo
       color = 0x0099FF; // Blue
   }
 
-  const embed = {
-    title,
-    color,
-    description,
-    fields: [
+  // Create EmbedBuilder instance
+  const embed = new EmbedBuilder()
+    .setTitle(title)
+    .setColor(color)
+    .setDescription(description)
+    .addFields(
       {
         name: "Slot",
         value: slotDisplay,
@@ -239,13 +240,12 @@ export function createSlotEmbed(slotResults, bet, status, balance = null, winAmo
         name: "Einsatz",
         value: `${bet}$`,
         inline: true,
-      },
-    ],
-    timestamp: new Date(),
-  };
+      }
+    )
+    .setTimestamp();
 
   if (balance !== null) {
-    embed.fields.push({
+    embed.addFields({
       name: "Kontostand",
       value: `${balance}$`,
       inline: true,
