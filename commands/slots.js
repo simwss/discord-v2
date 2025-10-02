@@ -8,7 +8,6 @@ export async function handleSlots(interaction, db, currentUserId) {
   let spinningInterval;
   let isCollectorActive = true;
   let currentSlotResults = [];
-  let message;
 
   try {
     const bet = interaction.options.getInteger("betrag");
@@ -48,14 +47,14 @@ export async function handleSlots(interaction, db, currentUserId) {
       .setStyle(ButtonStyle.Danger);
     const actionRow = new ActionRowBuilder().addComponents(stopButton);
 
-    // Reply first (no fetchReply!)
+    // Send initial reply
     await interaction.reply({
       embeds: [embed],
       components: [actionRow],
     });
 
-    // Fetch the reply message safely
-    message = await interaction.fetchReply();
+    // Fetch the reply message for the collector
+    const replyMessage = await interaction.fetchReply();
 
     // Initial slot roll
     currentSlotResults = Array.from(
@@ -66,7 +65,7 @@ export async function handleSlots(interaction, db, currentUserId) {
     // Spinning animation
     async function updateSpinningAnimation() {
       try {
-        if (!isCollectorActive || !message) return;
+        if (!isCollectorActive) return;
 
         currentSlotResults = Array.from(
           { length: 3 },
@@ -75,7 +74,7 @@ export async function handleSlots(interaction, db, currentUserId) {
 
         const spinningEmbed = createSlotEmbed(currentSlotResults, bet, "spinning");
 
-        await message.edit({
+        await interaction.editReply({
           embeds: [spinningEmbed],
           components: [actionRow],
         });
@@ -95,7 +94,7 @@ export async function handleSlots(interaction, db, currentUserId) {
       i.customId === `slots_stop_${currentUserId}_${bet}` &&
       i.user.id === currentUserId;
 
-    const collector = message.createMessageComponentCollector({
+    const collector = replyMessage.createMessageComponentCollector({
       filter,
       time: 60000,
     });
@@ -138,7 +137,7 @@ export async function handleSlots(interaction, db, currentUserId) {
           winAmount,
         );
 
-        await message.edit({
+        await interaction.editReply({
           embeds: [resultEmbed],
           components: [],
         });
@@ -158,7 +157,7 @@ export async function handleSlots(interaction, db, currentUserId) {
       if (reason === "time") {
         try {
           await set(gameRef, null);
-          await message.edit({
+          await interaction.editReply({
             content: "⏰ Slot-Spiel abgelaufen. Starte ein neues Spiel!",
             components: [],
           });
