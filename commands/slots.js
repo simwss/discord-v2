@@ -1,4 +1,5 @@
-import { ref, get, set } from "firebase/database";
+
+import { ref, get, set, update } from "firebase/database";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { ensureUserExists, validateBet } from "../utils/utils.js";
 import { GAME_CONFIG } from "../utils/constants.js";
@@ -48,115 +49,105 @@ export async function handleSlots(interaction, db, currentUserId) {
       .setStyle(ButtonStyle.Danger);
     const actionRow = new ActionRowBuilder().addComponents(stopButton);
 
-    // Use the new withResponse method to fix deprecation warning
-    const response = await interaction.reply({
+    // Correct way: use fetchReply instead of withResponse
+    message = await interaction.reply({
       embeds: [embed],
       components: [actionRow],
-      withResponse: true
+      fetchReply: true,
     });
 
-    message = response.message;
+    // Initial slot roll
     currentSlotResults = Array.from(
       { length: 3 },
       () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
     );
 
-    // Spinning animation function
-    async function updateSpinningAnimation() {
-      try {
-        if (!isCollectorActive || !message) return;
+    // Spinning animation
+async function updateSpinningAnimation() {
+  try {
+    if (!isCollectorActive || !message) return;
 
-        // Update the current slot results
-        currentSlotResults = Array.from(
-          { length: 3 },
-          () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
-        );
-        
-        const spinningEmbed = createSlotEmbed(currentSlotResults, bet, "spinning");
-        
-        console.log("Updating slots display:", currentSlotResults);
-        
-        // Use interaction.editReply for updates since we have the original interaction
-        await interaction.editReply({
-          embeds: [spinningEmbed],
-          components: [actionRow],
-        });
-      } catch (error) {
-        console.error("Error updating spinning animation:", error);
-        // If editing fails, stop the animation
-        if (spinningInterval) {
-          clearInterval(spinningInterval);
-        }
-        isCollectorActive = false;
-      }
-    }
+    currentSlotResults = Array.from(
+      { length: 3 },
+      () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)]
+    );
 
-    // Start spinning animation immediately
+    const spinningEmbed = createSlotEmbed(currentSlotResults, bet, "spinning");
+
+    await message.edit({
+      embeds: [spinningEmbed],
+      components: [actionRow],
+    });
+  } catch (error) {
+    console.error("Error updating spinning animation:", error);
+    if (spinningInterval) clearInterval(spinningInterval);
+    isCollectorActive = false;
+  }
+}
+
+
+    // Start animation
     await updateSpinningAnimation();
     spinningInterval = setInterval(updateSpinningAnimation, 1000);
 
-    // Create collector using the interaction
-    const filter = (i) => {
-      return i.customId === `slots_stop_${currentUserId}_${bet}` && 
-             i.user.id === currentUserId;
-    };
+    // Collector for stop button
+    const filter = (i) =>
+      i.customId === `slots_stop_${currentUserId}_${bet}` &&
+      i.user.id === currentUserId;
 
-    const collector = message.createMessageComponentCollector({
-      filter,
-      time: 60000,
-    });
+      await interaction.reply({
+        embeds: [embed],
+        components: [actionRow],
+        fetchReply: true,
+      });
 
-    collector.on('collect', async (i) => {
+      const message = await interaction.fetchReply(); // ensures Message instance
+
+      const collector = message.createMessageComponentCollector({
+        filter,
+        time: 60000,
+      });
+    collector.on("collect", async (i) => {
       if (!isCollectorActive) return;
       isCollectorActive = false;
-      
-      // Immediately acknowledge the interaction
+
       await i.deferUpdate();
-      
-      if (spinningInterval) {
-        clearInterval(spinningInterval);
-      }
+
+      if (spinningInterval) clearInterval(spinningInterval);
       collector.stop();
 
       try {
-        // Use the CURRENT slot results that were showing when button was pressed
         const finalSlotResults = [...currentSlotResults];
-
         console.log("Final slot results:", finalSlotResults);
 
-        // Calculate payout
-        let payoutMultiplier = -1; // Default to loss
+        // Payout calculation
+        let payoutMultiplier = -1;
         let winAmount = 0;
 
-        if (finalSlotResults.every((symbol) => symbol === finalSlotResults[0])) {
+        if (finalSlotResults.every((s) => s === finalSlotResults[0])) {
           payoutMultiplier = SLOTS.PAYOUTS[finalSlotResults[0]] || 0;
           winAmount = bet * payoutMultiplier;
         }
 
-        // Update user balance
         const newBalance = user.balance + winAmount;
-        await set(userRef, {
-          ...user,
-          balance: newBalance
-        });
 
-        // Clear game state
+        // Safer to use update instead of overwriting
+        await update(userRef, { balance: newBalance });
+
         await set(gameRef, null);
 
-        // Create result embed
         const resultEmbed = createSlotEmbed(
-          finalSlotResults, 
-          bet, 
+          finalSlotResults,
+          bet,
           payoutMultiplier === -1 ? "lost" : "won",
           newBalance,
-          winAmount
+          winAmount,
         );
 
-        await i.editReply({
+        await interaction.editReply({
           embeds: [resultEmbed],
           components: [],
         });
-
       } catch (error) {
         console.error("Error processing slot result:", error);
         await i.followUp({
@@ -166,14 +157,11 @@ export async function handleSlots(interaction, db, currentUserId) {
       }
     });
 
-    collector.on('end', async (collected, reason) => {
+    collector.on("end", async (_, reason) => {
       isCollectorActive = false;
-      if (spinningInterval) {
-        clearInterval(spinningInterval);
-      }
-      
-      // Clean up if collector ends without collection (timeout)
-      if (reason === 'time') {
+      if (spinningInterval) clearInterval(spinningInterval);
+
+      if (reason === "time") {
         try {
           await set(gameRef, null);
           await interaction.editReply({
@@ -185,15 +173,10 @@ export async function handleSlots(interaction, db, currentUserId) {
         }
       }
     });
-
   } catch (error) {
     console.error("Error in handleSlots:", error);
-    
-    // Clean up intervals on error
-    if (spinningInterval) {
-      clearInterval(spinningInterval);
-    }
-    
+    if (spinningInterval) clearInterval(spinningInterval);
+
     try {
       if (interaction.replied || interaction.deferred) {
         await interaction.editReply({
