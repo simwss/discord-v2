@@ -1,4 +1,3 @@
-
 import { ref, get, set, update } from "firebase/database";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { ensureUserExists, validateBet } from "../utils/utils.js";
@@ -49,42 +48,43 @@ export async function handleSlots(interaction, db, currentUserId) {
       .setStyle(ButtonStyle.Danger);
     const actionRow = new ActionRowBuilder().addComponents(stopButton);
 
-    // Correct way: use fetchReply instead of withResponse
-    message = await interaction.reply({
+    // Reply first (no fetchReply!)
+    await interaction.reply({
       embeds: [embed],
       components: [actionRow],
-      fetchReply: true,
     });
 
+    // Fetch the reply message safely
+    message = await interaction.fetchReply();
+
     // Initial slot roll
-    currentSlotResults = Array.from(
-      { length: 3 },
-      () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)],
-    );
-
-    // Spinning animation
-async function updateSpinningAnimation() {
-  try {
-    if (!isCollectorActive || !message) return;
-
     currentSlotResults = Array.from(
       { length: 3 },
       () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)]
     );
 
-    const spinningEmbed = createSlotEmbed(currentSlotResults, bet, "spinning");
+    // Spinning animation
+    async function updateSpinningAnimation() {
+      try {
+        if (!isCollectorActive || !message) return;
 
-    await message.edit({
-      embeds: [spinningEmbed],
-      components: [actionRow],
-    });
-  } catch (error) {
-    console.error("Error updating spinning animation:", error);
-    if (spinningInterval) clearInterval(spinningInterval);
-    isCollectorActive = false;
-  }
-}
+        currentSlotResults = Array.from(
+          { length: 3 },
+          () => SLOTS.SYMBOLS[Math.floor(Math.random() * SLOTS.SYMBOLS.length)]
+        );
 
+        const spinningEmbed = createSlotEmbed(currentSlotResults, bet, "spinning");
+
+        await message.edit({
+          embeds: [spinningEmbed],
+          components: [actionRow],
+        });
+      } catch (error) {
+        console.error("Error updating spinning animation:", error);
+        if (spinningInterval) clearInterval(spinningInterval);
+        isCollectorActive = false;
+      }
+    }
 
     // Start animation
     await updateSpinningAnimation();
@@ -95,18 +95,11 @@ async function updateSpinningAnimation() {
       i.customId === `slots_stop_${currentUserId}_${bet}` &&
       i.user.id === currentUserId;
 
-      await interaction.reply({
-        embeds: [embed],
-        components: [actionRow],
-        fetchReply: true,
-      });
+    const collector = message.createMessageComponentCollector({
+      filter,
+      time: 60000,
+    });
 
-      const message = await interaction.fetchReply(); // ensures Message instance
-
-      const collector = message.createMessageComponentCollector({
-        filter,
-        time: 60000,
-      });
     collector.on("collect", async (i) => {
       if (!isCollectorActive) return;
       isCollectorActive = false;
@@ -131,9 +124,10 @@ async function updateSpinningAnimation() {
 
         const newBalance = user.balance + winAmount;
 
-        // Safer to use update instead of overwriting
+        // Update balance safely
         await update(userRef, { balance: newBalance });
 
+        // Clear game state
         await set(gameRef, null);
 
         const resultEmbed = createSlotEmbed(
@@ -144,7 +138,7 @@ async function updateSpinningAnimation() {
           winAmount,
         );
 
-        await interaction.editReply({
+        await message.edit({
           embeds: [resultEmbed],
           components: [],
         });
@@ -164,7 +158,7 @@ async function updateSpinningAnimation() {
       if (reason === "time") {
         try {
           await set(gameRef, null);
-          await interaction.editReply({
+          await message.edit({
             content: "⏰ Slot-Spiel abgelaufen. Starte ein neues Spiel!",
             components: [],
           });
