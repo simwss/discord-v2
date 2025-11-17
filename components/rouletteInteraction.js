@@ -45,7 +45,7 @@ export async function handleRoulette(
   const gambleSnapshot = await get(gambleRef);
   const gambleUser = gambleSnapshot.val();
 
-  if (win || winningNumber === 0) {
+  if (win) {
     gambleUser.balance += betAmount * payoutMultiplier;
   } else {
     gambleUser.balance -= betAmount;
@@ -53,7 +53,7 @@ export async function handleRoulette(
 
   await set(gambleRef, gambleUser);
 
-  const won = win || winningNumber === 0;
+  const won = win 
   const colorEmoji = winningColor === "red" ? "🟥" : winningColor === "green" ? "🟩" : "⬛";
   const colorName = winningColor === "red" ? "Rot" : winningColor === "green" ? "Grün" : "Schwarz";
 
