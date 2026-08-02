@@ -5,5 +5,28 @@
     ":disableDependencyDashboard",
     ":preserveSemverRanges"
   ],
-  "ignorePaths": ["**/node_modules/**"]
+  "ignorePaths": ["**/node_modules/**"],
+  "packageRules": [
+    {
+      "description": "Batch dev tooling; these never affect the running bot.",
+      "matchDepTypes": ["devDependencies"],
+      "groupName": "dev dependencies",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Keep the Docker base image and Actions current.",
+      "matchManagers": ["dockerfile", "github-actions"],
+      "groupName": "container and CI toolchain"
+    },
+    {
+      "description": "Discord and Firebase majors change runtime behaviour — review by hand.",
+      "matchPackageNames": ["discord.js", "firebase"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  }
 }

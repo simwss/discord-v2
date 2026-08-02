@@ -1,53 +1,72 @@
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Docker Compose reference guide at
-# https://docs.docker.com/go/compose-spec-reference/
+# Configuration comes from .env (copy .env.example and fill it in).
+#
+#   docker compose up -d                              run the published image
+#   docker compose up -d --build                      build from this checkout
+#   docker compose --profile tools run --rm register  publish slash commands
+#   docker compose logs -f bot                        follow logs
 
-# Here the instructions define your application as a service called "server".
-# This service is built from the Dockerfile in the current directory.
-# You can add other services your application may depend on here, such as a
-# database or a cache. For examples, see the Awesome Compose repository:
-# https://github.com/docker/awesome-compose
 services:
-  server:
+  bot:
+    # Pinning a digest or a version tag is safer for a real deployment;
+    # :latest is here so `docker compose pull` picks up new builds.
+    image: ghcr.io/simwss/discord-v2:latest
+    build:
+      context: .
+    container_name: rasselbande-bot
+    restart: unless-stopped
+
+    env_file:
+      - .env
+    environment:
+      # Set here rather than in .env so the container is correct even if
+      # someone runs it with a development .env.
+      NODE_ENV: production
+      HEALTH_PORT: 3001
+
+    ports:
+      # Loopback only: the health endpoint is for this host, not the internet.
+      - "127.0.0.1:3001:3001"
+
+    # A crash-looping container should not be able to fill the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # The bot only needs outbound HTTPS and its own code.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # One-shot: publishes the slash-command definitions to Discord, then exits.
+  # Re-run whenever a command's name, description or options change.
+  register:
+    profiles: ["tools"]
+    image: ghcr.io/simwss/discord-v2:latest
     build:
       context: .
     env_file:
       - .env
-    environment:
-      NODE_ENV: production
-    ports:
-      - 3001:3001
-
-# The commented out section below is an example of how to define a PostgreSQL
-# database that your application can use. `depends_on` tells Docker Compose to
-# start the database before your application. The `db-data` volume persists the
-# database data between container restarts. The `db-password` secret is used
-# to set the database password. You must create `db/password.txt` and add
-# a password of your choosing to it before running `docker-compose up`.
-#     depends_on:
-#       db:
-#         condition: service_healthy
-#   db:
-#     image: postgres
-#     restart: always
-#     user: postgres
-#     secrets:
-#       - db-password
-#     volumes:
-#       - db-data:/var/lib/postgresql/data
-#     environment:
-#       - POSTGRES_DB=example
-#       - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
-#     expose:
-#       - 5432
-#     healthcheck:
-#       test: [ "CMD", "pg_isready" ]
-#       interval: 10s
-#       timeout: 5s
-#       retries: 5
-# volumes:
-#   db-data:
-# secrets:
-#   db-password:
-#     file: db/password.txt
-
+    command: ["node", "dist/scripts/register-commands.js"]
+    restart: "no"

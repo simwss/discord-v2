@@ -1,34 +1,32 @@
-# Include any files or directories that you don't want to be copied to your
-# container here (e.g., local build artifacts, temporary files, etc.).
-#
-# For more help, visit the .dockerignore file reference guide at
-# https://docs.docker.com/go/build-context-dockerignore/
+# Keep the build context minimal: every file here is a cache-buster.
+# The Dockerfile copies only what it needs, so this is defence in depth —
+# most importantly it guarantees .env can never be baked into an image.
 
-**/.classpath
-**/.dockerignore
-**/.env
-**/.git
-**/.gitignore
-**/.project
-**/.settings
-**/.toolstarget
-**/.vs
-**/.vscode
-**/.next
-**/.cache
-**/*.*proj.user
-**/*.dbmdl
-**/*.jfm
-**/charts
-**/docker-compose*
-**/compose.y*ml
-**/Dockerfile*
-**/node_modules
-**/npm-debug.log
-**/obj
-**/secrets.dev.yaml
-**/values.dev.yaml
-**/build
-**/dist
-LICENSE
+.env
+.env.*
+!.env.example
+
+.git
+.github
+.gitignore
+.dockerignore
+.editorconfig
+.nvmrc
+.prettierignore
+.prettierrc.json
+
+node_modules
+dist
+coverage
+*.tsbuildinfo
+*.log
+
+Dockerfile
+compose.yaml
+docker-compose*
+
 README.md
+docs
+renovate.json
+eslint.config.js
+vitest.config.ts
