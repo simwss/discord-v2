@@ -4,8 +4,54 @@
 #   docker compose up -d --build                      build from this checkout
 #   docker compose --profile tools run --rm register  publish slash commands
 #   docker compose logs -f bot                        follow logs
+#   docker compose exec postgres psql -U rasselbande  open a SQL shell
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: rasselbande-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rasselbande}
+      POSTGRES_USER: ${POSTGRES_USER:-rasselbande}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Postgres only trusts the local socket by default; require a password
+      # for TCP connections from the bot container as well.
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    ports:
+      # Loopback only: the database is for this host's containers, not the
+      # internet. Exposed at all so `psql` and `pg_dump` work from the host.
+      - "127.0.0.1:5432:5432"
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-rasselbande} -d ${POSTGRES_DB:-rasselbande}
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    security_opt:
+      - no-new-privileges:true
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   bot:
     # Pinning a digest or a version tag is safer for a real deployment;
     # :latest is here so `docker compose pull` picks up new builds.
@@ -15,6 +61,12 @@ services:
     container_name: rasselbande-bot
     restart: unless-stopped
 
+    depends_on:
+      postgres:
+        # The bot migrates the schema at boot, so it must not start until
+        # Postgres is accepting connections.
+        condition: service_healthy
+
     env_file:
       - .env
     environment:
@@ -22,6 +74,9 @@ services:
       # someone runs it with a development .env.
       NODE_ENV: production
       HEALTH_PORT: 3001
+      # Overrides the .env value, which points at localhost for running the
+      # bot outside Compose. Inside the network the host is the service name.
+      DATABASE_URL: postgres://${POSTGRES_USER:-rasselbande}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rasselbande}
 
     ports:
       # Loopback only: the health endpoint is for this host, not the internet.
@@ -34,7 +89,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-    # The bot only needs outbound HTTPS and its own code.
+    # The bot only needs outbound HTTPS, the database and its own code.
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -68,5 +123,30 @@ services:
       context: .
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rasselbande}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rasselbande}
     command: ["node", "dist/scripts/register-commands.js"]
     restart: "no"
+
+  # One-shot: imports a Realtime Database export into Postgres. Put the export
+  # next to this file, then:
+  #
+  #   docker compose --profile tools run --rm \
+  #     -v ./firebase-export.json:/import.json:ro import /import.json
+  import:
+    profiles: ["tools"]
+    image: ghcr.io/simwss/discord-v2:latest
+    build:
+      context: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rasselbande}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rasselbande}
+    entrypoint: ["/sbin/tini", "--", "node", "dist/scripts/import-firebase.js"]
+    restart: "no"
+
+volumes:
+  postgres-data:

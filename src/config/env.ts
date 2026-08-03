@@ -2,13 +2,20 @@ import "dotenv/config";
 import { z } from "zod";
 
 /**
- * The v1 bot read bare env names like `API_KEY`. Those are ambiguous in a
- * shared environment, so v2 prefers `FIREBASE_`-prefixed names but still
- * accepts the legacy ones so an existing `.env` keeps working.
+ * The v1 bot read a bare `APP_ID`. That is ambiguous in a shared environment,
+ * so v2 prefers the `DISCORD_`-prefixed name but still accepts the legacy one
+ * so an existing `.env` keeps working.
  */
 function withLegacy(name: string, legacy: string): string | undefined {
   return process.env[name] ?? process.env[legacy];
 }
+
+/**
+ * Catches the most likely misconfiguration by far: leaving the Firebase
+ * `DATABASE_URL` from v2.0 in place after the move to Postgres. An `https://`
+ * URL fails here with a readable message instead of somewhere inside `pg`.
+ */
+const POSTGRES_URL = /^postgres(ql)?:\/\//;
 
 const csvUserIds = z
   .string()
@@ -34,14 +41,19 @@ const envSchema = z.object({
     guildId: z.string().optional(),
   }),
 
-  firebase: z.object({
-    apiKey: z.string().min(1, "FIREBASE_API_KEY is required"),
-    databaseURL: z.url("FIREBASE_DATABASE_URL must be a URL"),
-    projectId: z.string().min(1, "FIREBASE_PROJECT_ID is required"),
-    authDomain: z.string().optional(),
-    storageBucket: z.string().optional(),
-    messagingSenderId: z.string().optional(),
-    appId: z.string().optional(),
+  database: z.object({
+    url: z
+      .string("DATABASE_URL is required")
+      .regex(
+        POSTGRES_URL,
+        "DATABASE_URL must be a postgres:// connection string",
+      ),
+    // One connection per concurrently-running command. A Discord bot handles
+    // interactions one gateway event at a time, so a handful is plenty.
+    poolMax: z.coerce.number().int().min(1).max(100).default(10),
+    // `on` verifies the server certificate; `no-verify` encrypts without
+    // verifying, which is what most managed providers need without a CA file.
+    ssl: z.enum(["off", "on", "no-verify"]).default("off"),
   }),
 
   bannedUserIds: csvUserIds,
@@ -63,17 +75,10 @@ function readEnv(): Env {
       applicationId: withLegacy("DISCORD_APP_ID", "APP_ID"),
       guildId: guildId === "" ? undefined : guildId,
     },
-    firebase: {
-      apiKey: withLegacy("FIREBASE_API_KEY", "API_KEY"),
-      databaseURL: withLegacy("FIREBASE_DATABASE_URL", "DATABASE_URL"),
-      projectId: withLegacy("FIREBASE_PROJECT_ID", "PROJECT_ID"),
-      authDomain: withLegacy("FIREBASE_AUTH_DOMAIN", "AUTH_DOMAIN"),
-      storageBucket: withLegacy("FIREBASE_STORAGE_BUCKET", "STORAGE_BUCKET"),
-      messagingSenderId: withLegacy(
-        "FIREBASE_MESSAGING_SENDER_ID",
-        "MESSAGING_SENDER_ID",
-      ),
-      appId: process.env.FIREBASE_APP_ID,
+    database: {
+      url: process.env.DATABASE_URL,
+      poolMax: process.env.DATABASE_POOL_MAX,
+      ssl: process.env.DATABASE_SSL,
     },
     bannedUserIds: process.env.BANNED_USER_IDS,
   });

@@ -2,8 +2,8 @@ import { createServer, type Server } from "node:http";
 import type { Logger } from "pino";
 
 export interface HealthState {
-  /** True once the gateway connection is up. */
-  isReady: () => boolean;
+  /** True once the gateway connection is up and the database answers. */
+  isReady: () => boolean | Promise<boolean>;
 }
 
 /**
@@ -12,7 +12,7 @@ export interface HealthState {
  * Express and an exposed port for a server it never actually started.
  *
  * - `GET /health` — the process is alive.
- * - `GET /ready`  — the Discord gateway is connected.
+ * - `GET /ready`  — the Discord gateway is connected and the database answers.
  */
 export function startHealthServer(
   port: number,
@@ -22,6 +22,15 @@ export function startHealthServer(
   if (port === 0) {
     logger.info("health server disabled (HEALTH_PORT=0)");
     return null;
+  }
+
+  async function ready(): Promise<boolean> {
+    try {
+      return await state.isReady();
+    } catch (error) {
+      logger.warn({ err: error }, "readiness check threw");
+      return false;
+    }
   }
 
   const server = createServer((req, res) => {
@@ -34,9 +43,12 @@ export function startHealthServer(
     }
 
     if (path === "/ready") {
-      const ready = state.isReady();
-      res.writeHead(ready ? 200 : 503, { "content-type": "application/json" });
-      res.end(JSON.stringify({ status: ready ? "ready" : "connecting" }));
+      // The readiness check does I/O, so the response is written from a
+      // promise rather than inline.
+      void ready().then((ok) => {
+        res.writeHead(ok ? 200 : 503, { "content-type": "application/json" });
+        res.end(JSON.stringify({ status: ok ? "ready" : "connecting" }));
+      });
       return;
     }
 

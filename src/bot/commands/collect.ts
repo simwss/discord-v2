@@ -4,6 +4,7 @@ import {
   computeMiningYield,
   dailyYield,
   MINING_COOLDOWN_MS,
+  type MiningResult,
 } from "../../domain/miners.js";
 import { cooldownEmbed, miningEmbed, noMinersEmbed } from "../ui/embeds.js";
 import { respondEphemeral } from "../reply.js";
@@ -23,13 +24,17 @@ export const collectCommand: BotCommand = {
     }
 
     const now = ctx.clock.now();
+    let credited: MiningResult | undefined;
     const result = await ctx.users.claimMining({
       userId,
       cooldownMs: MINING_COOLDOWN_MS,
       now,
       // Evaluated inside the transaction against the committed record, so a
-      // duplicate command cannot be credited for the same elapsed days.
-      computeAmount: (current) => computeMiningYield(current, now).amount,
+      // duplicate command cannot be credited for the same elapsed time.
+      computeAmount: (current) => {
+        credited = computeMiningYield(current, now);
+        return credited.amount;
+      },
     });
 
     if (!result.ok) {
@@ -39,13 +44,12 @@ export const collectCommand: BotCommand = {
       return;
     }
 
-    const { days } = computeMiningYield(profile, now);
     await interaction.reply({
       embeds: [
         miningEmbed(
           result.amount,
           result.balance,
-          days,
+          credited?.elapsedMs ?? 0,
           now + MINING_COOLDOWN_MS,
         ),
       ],

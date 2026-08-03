@@ -1,7 +1,7 @@
 import type { Logger } from "pino";
 import { GameRuleError } from "../core/errors.js";
 import { assertValidTransfer } from "../domain/economy.js";
-import type { UserRepository } from "../infra/firebase/user-repository.js";
+import type { UserRepository } from "../infra/db/user-repository.js";
 
 export interface TransferResult {
   readonly amount: number;
@@ -11,11 +11,9 @@ export interface TransferResult {
 /**
  * Moves money between two users.
  *
- * The Realtime Database can only run a transaction against a single subtree,
- * and locking the whole `users` node for every transfer would serialise all
- * balance writes in the bot. Instead the debit and credit are separate atomic
- * steps with a compensating refund if the credit fails — the sender is never
- * left short, and the guarded debit means funds cannot be conjured.
+ * The atomicity lives in the repository, which debits and credits inside one
+ * database transaction. This layer owns the rules a player sees: no paying
+ * yourself, no unregistered recipient, and the stake limits in `economy`.
  */
 export class TransferService {
   constructor(
@@ -32,32 +30,24 @@ export class TransferService {
       throw new GameRuleError("Du kannst dir nicht selbst Geld schicken.");
     }
 
-    const receiver = await this.users.find(receiverId);
-    if (!receiver) {
-      throw new GameRuleError("Der Empfänger ist nicht registriert.");
-    }
-
     const sender = await this.users.ensure(senderId);
     assertValidTransfer(amount, sender.balance);
 
-    const debit = await this.users.adjustBalance(senderId, -amount);
-    if (!debit.ok) {
+    const result = await this.users.transfer(senderId, receiverId, amount);
+
+    if (!result.ok) {
+      if (result.reason === "receiver_unknown") {
+        throw new GameRuleError("Der Empfänger ist nicht registriert.");
+      }
+      // The balance was re-read under the row lock, so this fires when a
+      // concurrent command spent the money between the check above and here.
+      this.logger.debug(
+        { senderId, receiverId, amount },
+        "transfer rejected for insufficient funds",
+      );
       throw new GameRuleError("Du hast nicht genug Geld.");
     }
 
-    try {
-      await this.users.credit(receiverId, amount);
-    } catch (error) {
-      this.logger.error(
-        { err: error, senderId, receiverId, amount },
-        "credit failed, refunding sender",
-      );
-      await this.users.credit(senderId, amount);
-      throw new GameRuleError(
-        "Die Überweisung ist fehlgeschlagen. Dein Geld wurde zurückgebucht.",
-      );
-    }
-
-    return { amount, senderBalance: debit.balance };
+    return { amount, senderBalance: result.senderBalance };
   }
 }

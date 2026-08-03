@@ -13,9 +13,7 @@ export const leaderboardCommand: BotCommand = {
     // Fetching usernames takes more than Discord's 3 second reply window.
     await interaction.deferReply();
 
-    const top = (await ctx.users.listAll())
-      .sort((a, b) => b.balance - a.balance)
-      .slice(0, MAX_ENTRIES);
+    const top = await ctx.users.topByBalance(MAX_ENTRIES);
 
     const entries: LeaderboardEntry[] = await Promise.all(
       top.map(async (profile) => {

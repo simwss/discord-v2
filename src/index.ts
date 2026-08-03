@@ -4,10 +4,11 @@ import { getLogger } from "./core/logger.js";
 import { cryptoRng } from "./core/random.js";
 import { systemClock } from "./core/clock.js";
 import { toError } from "./core/errors.js";
-import { createFirebase } from "./infra/firebase/client.js";
-import { UserRepository } from "./infra/firebase/user-repository.js";
-import { VoteRepository } from "./infra/firebase/vote-repository.js";
-import { BlackjackRepository } from "./infra/firebase/blackjack-repository.js";
+import { createPool, isDatabaseReachable } from "./infra/db/pool.js";
+import { runMigrations } from "./infra/db/migrate.js";
+import { UserRepository } from "./infra/db/user-repository.js";
+import { VoteRepository } from "./infra/db/vote-repository.js";
+import { BlackjackRepository } from "./infra/db/blackjack-repository.js";
 import { TransferService } from "./services/transfer-service.js";
 import { startHealthServer } from "./infra/health-server.js";
 import { createBotClient, installShutdownHandlers } from "./bot/client.js";
@@ -23,13 +24,17 @@ async function main(): Promise<void> {
 
   logger.info({ nodeEnv: env.nodeEnv }, "starting rasselbande bot");
 
-  const { db } = createFirebase();
-  const users = new UserRepository(db);
+  const pool = createPool(logger);
+  // Before the gateway connects, so a schema problem surfaces as a failed
+  // start rather than as commands failing one at a time in production.
+  await runMigrations(pool, logger);
+
+  const users = new UserRepository(pool);
 
   const ctx: BotContext = {
     users,
-    votes: new VoteRepository(db),
-    blackjack: new BlackjackRepository(db),
+    votes: new VoteRepository(pool),
+    blackjack: new BlackjackRepository(pool),
     transfers: new TransferService(users, logger),
     rng: cryptoRng,
     clock: systemClock,
@@ -41,7 +46,13 @@ async function main(): Promise<void> {
 
   const health = startHealthServer(
     env.healthPort,
-    { isReady: () => client.ws.status === Status.Ready },
+    {
+      // A bot whose database has gone away can accept interactions but cannot
+      // answer any of them, so it is not ready.
+      isReady: async () =>
+        client.ws.status === Status.Ready &&
+        (await isDatabaseReachable(pool, logger)),
+    },
     logger,
   );
 
@@ -55,6 +66,7 @@ async function main(): Promise<void> {
         resolve();
       });
     });
+    await pool.end();
   });
 
   await client.login(env.discord.token);

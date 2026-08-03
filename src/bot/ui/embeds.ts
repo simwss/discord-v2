@@ -4,6 +4,7 @@ import {
   absoluteTime,
   bold,
   currency,
+  duration,
   mentionList,
   relativeTime,
 } from "./format.js";
@@ -143,10 +144,10 @@ export function minerPurchaseEmbed(
 export function miningEmbed(
   amount: number,
   balance: number,
-  days: number,
+  elapsedMs: number,
   nextAt: number,
 ): EmbedBuilder {
-  const span = days > 1 ? ` (${days} Tage)` : "";
+  const span = ` (${duration(elapsedMs)})`;
   return successEmbed(
     "Ressourcen gesammelt",
     `Du hast ${bold(currency(amount))} von deinen Minern eingesammelt${span}.`,

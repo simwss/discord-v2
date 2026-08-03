@@ -6,6 +6,10 @@
 .env.*
 !.env.example
 
+firebase-export.json
+*.dump
+*.sql.gz
+
 .git
 .github
 .gitignore

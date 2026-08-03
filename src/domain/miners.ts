@@ -40,22 +40,29 @@ export function dailyYield(miners: Record<MinerType, number>): number {
 }
 
 export interface MiningResult {
-  /** Whole days credited, at least 1 when off cooldown. */
-  readonly days: number;
+  /** Time span the payout covers, in milliseconds. */
+  readonly elapsedMs: number;
   readonly amount: number;
 }
 
 /**
  * Earnings accrued since the last collection. Callers must check the
  * cooldown first — this assumes collection is allowed.
+ *
+ * The payout is prorated over the exact elapsed time rather than whole days:
+ * collecting after 30h credits 30h of yield, so the leftover 6h are not lost
+ * when `lastMineAt` moves to now. Only the sub-coin remainder is dropped.
  */
 export function computeMiningYield(
   profile: UserProfile,
   now: number,
 ): MiningResult {
-  const days =
-    profile.lastMineAt === 0
-      ? 1
-      : Math.max(1, Math.floor((now - profile.lastMineAt) / DAY_MS));
-  return { days, amount: dailyYield(profile.miners) * days };
+  // A user who has never collected has nothing to accrue from, so the first
+  // collection seeds a single day.
+  const elapsedMs =
+    profile.lastMineAt === 0 ? DAY_MS : Math.max(0, now - profile.lastMineAt);
+  return {
+    elapsedMs,
+    amount: Math.floor((dailyYield(profile.miners) * elapsedMs) / DAY_MS),
+  };
 }

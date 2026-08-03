@@ -13,6 +13,11 @@ coverage/
 .env.*
 !.env.example
 
+# database exports and dumps: real user data, never in git
+firebase-export.json
+*.dump
+*.sql.gz
+
 # editors / os
 .DS_Store
 .idea/
