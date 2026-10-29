@@ -10,7 +10,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Includes the workflow name: when the publish workflow calls this one,
+  # github.workflow is the caller, so the push-triggered CI run and the
+  # publish verification no longer cancel each other.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
