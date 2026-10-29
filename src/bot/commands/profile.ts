@@ -34,11 +34,20 @@ export const profileCommand: BotCommand = {
       );
     }
 
-    const achievements = await ctx.achievements.list(target.id);
+    const [achievements, bounty] = await Promise.all([
+      ctx.achievements.list(target.id),
+      ctx.users.bountyOn(target.id),
+    ]);
 
     await interaction.reply({
       embeds: [
-        profileEmbed(profile, target.displayName, achievements, ctx.rng),
+        profileEmbed(
+          profile,
+          target.displayName,
+          achievements,
+          ctx.rng,
+          bounty,
+        ),
       ],
     });
   },

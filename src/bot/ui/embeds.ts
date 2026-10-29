@@ -64,6 +64,7 @@ export function profileEmbed(
   username: string,
   achievementIds: readonly string[] = [],
   rng: Rng = cryptoRng,
+  bounty = 0,
 ): EmbedBuilder {
   const badges = achievementIds
     .map((id) => ACHIEVEMENTS_BY_ID.get(id)?.name)
@@ -90,6 +91,9 @@ export function profileEmbed(
         value: badges.length > 0 ? badges.join(" · ") : "Noch keine",
         inline: true,
       },
+      ...(bounty > 0
+        ? [{ name: "Kopfgeld", value: bold(currency(bounty)) }]
+        : []),
     );
 }
 
@@ -146,15 +150,21 @@ export function robEmbed(params: {
   outcome: "success" | "caught";
   amount: number;
   balance: number;
+  bounty?: number;
 }): EmbedBuilder {
   const victim = mention(params.victimId);
   const success = params.outcome === "success";
+  const bounty = params.bounty ?? 0;
+  const bountyText =
+    success && bounty > 0
+      ? `\nDazu kassierst du das Kopfgeld von ${bold(currency(bounty))}.`
+      : "";
 
   return new EmbedBuilder()
     .setTitle(success ? "Raub geglückt" : "Erwischt")
     .setDescription(
       success
-        ? `Du hast ${victim} ${bold(currency(params.amount))} abgenommen.`
+        ? `Du hast ${victim} ${bold(currency(params.amount))} abgenommen.${bountyText}`
         : `Du wurdest erwischt und musst ${victim} ${bold(currency(params.amount))} Strafe zahlen.`,
     )
     .setColor(success ? COLORS.SUCCESS : COLORS.ERROR)

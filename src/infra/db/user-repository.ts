@@ -58,11 +58,20 @@ export type RobResult =
       readonly ok: true;
       readonly decision: Exclude<RobDecision, { kind: "rejected" }>;
       readonly robberBalance: number;
+      /** Bounty collected on top of the loot; zero when there was none. */
+      readonly bounty: number;
     }
   | { readonly ok: false; readonly reason: "cooldown"; readonly nextAt: number }
   | {
       readonly ok: false;
       readonly reason: "victim_unknown" | "victim_poor" | "robber_poor";
+    };
+
+export type BountyResult =
+  | { readonly ok: true; readonly balance: number; readonly total: number }
+  | {
+      readonly ok: false;
+      readonly reason: "insufficient_funds" | "target_unknown";
     };
 
 export interface LeaderboardRow {
@@ -418,7 +427,19 @@ export class UserRepository {
 
       const moved =
         decision.kind === "success" ? decision.amount : -decision.fine;
-      const robberBalance = robber.balance + moved;
+
+      // Users are locked before bounties here and in placeBounty, so the two
+      // cannot deadlock. Deleting the row is what makes the bounty single-use.
+      let bounty = 0;
+      if (decision.kind === "success") {
+        const claimed = await client.query<{ amount: number }>(
+          "DELETE FROM bounties WHERE target_id = $1 RETURNING amount",
+          [params.victimId],
+        );
+        bounty = claimed.rows[0]?.amount ?? 0;
+      }
+
+      const robberBalance = robber.balance + moved + bounty;
 
       const robberUpdate = buildUserUpdate(params.robberId, {
         balance: robberBalance,
@@ -435,8 +456,58 @@ export class UserRepository {
         if (update) await client.query(update.text, [...update.values]);
       }
 
-      return { ok: true, decision, robberBalance };
+      return { ok: true, decision, robberBalance, bounty };
     });
+  }
+
+  /**
+   * Debits the placer and adds the amount to the bounty on the target, as one
+   * transaction, so the money is never both on the account and in the bounty.
+   */
+  async placeBounty(
+    placerId: string,
+    targetId: string,
+    amount: number,
+  ): Promise<BountyResult> {
+    return withTransaction(this.pool, async (client) => {
+      const placer = await lockUser(client, placerId);
+
+      const target = await client.query<{ id: string }>(
+        "SELECT id FROM users WHERE id = $1",
+        [targetId],
+      );
+      if (target.rows.length === 0) {
+        return { ok: false, reason: "target_unknown" };
+      }
+
+      if (placer.balance < amount) {
+        return { ok: false, reason: "insufficient_funds" };
+      }
+
+      const balance = placer.balance - amount;
+      await client.query(
+        "UPDATE users SET balance = $2, updated_at = now() WHERE id = $1",
+        [placerId, balance],
+      );
+      const { rows } = await client.query<{ amount: number }>(
+        `INSERT INTO bounties (target_id, amount) VALUES ($1, $2)
+         ON CONFLICT (target_id) DO UPDATE
+           SET amount = bounties.amount + EXCLUDED.amount, updated_at = now()
+         RETURNING amount`,
+        [targetId, amount],
+      );
+
+      return { ok: true, balance, total: rows[0]?.amount ?? amount };
+    });
+  }
+
+  /** The open bounty on a player, or zero. */
+  async bountyOn(targetId: string): Promise<number> {
+    const { rows } = await this.pool.query<{ amount: number }>(
+      "SELECT amount FROM bounties WHERE target_id = $1",
+      [targetId],
+    );
+    return rows[0]?.amount ?? 0;
   }
 
   /** One page of a leaderboard, plus how many players it ranks in total. */

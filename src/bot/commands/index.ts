@@ -2,6 +2,7 @@ import type { BotCommand } from "./types.js";
 import { abstimmungCommand } from "./abstimmung.js";
 import { authorisierenCommand } from "./authorisieren.js";
 import { blackjackCommand } from "./blackjack.js";
+import { bountyCommand } from "./bounty.js";
 import { buyCommand } from "./buy.js";
 import { coinflipCommand } from "./coinflip.js";
 import { collectCommand } from "./collect.js";
@@ -25,6 +26,7 @@ export const commands: readonly BotCommand[] = [
   abstimmungCommand,
   authorisierenCommand,
   blackjackCommand,
+  bountyCommand,
   buyCommand,
   coinflipCommand,
   collectCommand,

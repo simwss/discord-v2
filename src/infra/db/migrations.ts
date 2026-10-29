@@ -106,4 +106,18 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: 3,
+    name: "bounties",
+    sql: `
+      -- One row per target; further bounties on the same player add up. The
+      -- money is already debited from whoever placed it, so the row is the
+      -- record of money waiting for the next successful robber.
+      CREATE TABLE bounties (
+        target_id  text   PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+        amount     bigint NOT NULL CHECK (amount > 0 AND amount <= ${MAX_SAFE}),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
 ];

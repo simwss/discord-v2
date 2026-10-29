@@ -72,6 +72,7 @@ export const robCommand: BotCommand = {
           outcome: decision.kind,
           amount: decision.kind === "success" ? decision.amount : decision.fine,
           balance: result.robberBalance,
+          bounty: result.bounty,
         }),
       ],
       allowedMentions: { users: [victim.id] },
