@@ -12,6 +12,13 @@ export interface UserProfile {
   miners: Record<MinerType, number>;
   lastMineAt: number;
   workClaimedAt: Record<WorkKind, number>;
+  /** Consecutive days /daily was claimed. */
+  dailyStreak: number;
+  /** Consecutive blackjack wins; a push leaves it unchanged. */
+  blackjackWinStreak: number;
+  lastRobAt: number;
+  robSuccesses: number;
+  robFailures: number;
 }
 
 /** Credited once, when a user is first seen. */

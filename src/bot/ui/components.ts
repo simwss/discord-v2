@@ -5,6 +5,39 @@ import { ROULETTE_COLORS, type RouletteColor } from "../../domain/roulette.js";
 export const BLACKJACK_NAMESPACE = "bj";
 export const ROULETTE_NAMESPACE = "rl";
 export const VOTE_NAMESPACE = "vote";
+export const LEADERBOARD_NAMESPACE = "lb";
+
+/**
+ * Previous and next buttons around a page indicator. The indicator is a
+ * disabled button because Discord has no plain label component in a row.
+ */
+export function leaderboardButtons(
+  metric: string,
+  page: number,
+  pages: number,
+): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(
+        encodeCustomId(LEADERBOARD_NAMESPACE, "page", metric, page - 1),
+      )
+      .setLabel("◀")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page <= 0),
+    new ButtonBuilder()
+      .setCustomId(encodeCustomId(LEADERBOARD_NAMESPACE, "info", metric, page))
+      .setLabel(`${page + 1} / ${pages}`)
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId(
+        encodeCustomId(LEADERBOARD_NAMESPACE, "page", metric, page + 1),
+      )
+      .setLabel("▶")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= pages - 1),
+  );
+}
 
 export function blackjackButtons(
   userId: string,

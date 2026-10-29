@@ -16,6 +16,10 @@ import {
   type WorkKind,
 } from "../../domain/user.js";
 import { MINERS, sellPrice } from "../../domain/miners.js";
+import { dailyStreakBonus, nextDailyStreak } from "../../domain/streak.js";
+import type { RobDecision } from "../../domain/rob.js";
+import type { BlackjackOutcome } from "../../domain/blackjack.js";
+import type { LeaderboardMetric } from "../../domain/leaderboard.js";
 
 /** A mutation that either writes the given columns or aborts, carrying a result. */
 interface Mutation<T> {
@@ -34,6 +38,62 @@ export type ClaimResult =
       readonly reason: "cooldown";
       readonly nextAt: number;
     };
+
+export type DailyClaimResult =
+  | {
+      readonly ok: true;
+      readonly amount: number;
+      readonly bonus: number;
+      readonly streak: number;
+      readonly balance: number;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "cooldown";
+      readonly nextAt: number;
+    };
+
+export type RobResult =
+  | {
+      readonly ok: true;
+      readonly decision: Exclude<RobDecision, { kind: "rejected" }>;
+      readonly robberBalance: number;
+    }
+  | { readonly ok: false; readonly reason: "cooldown"; readonly nextAt: number }
+  | {
+      readonly ok: false;
+      readonly reason: "victim_unknown" | "victim_poor" | "robber_poor";
+    };
+
+export interface LeaderboardRow {
+  readonly id: string;
+  readonly value: number;
+}
+
+export interface LeaderboardPage {
+  readonly rows: readonly LeaderboardRow[];
+  readonly total: number;
+}
+
+/**
+ * SQL for each leaderboard metric. Only these fixed strings are ever spliced
+ * into the query, so no caller-supplied text can reach it.
+ */
+const LEADERBOARD_SQL: Readonly<
+  Record<LeaderboardMetric, { value: string; filter: string }>
+> = {
+  balance: { value: "balance", filter: "TRUE" },
+  miners: {
+    value: "basic_miners + elite_miners + deluxe_miners",
+    filter: "basic_miners + elite_miners + deluxe_miners > 0",
+  },
+  yield: {
+    value: `basic_miners * ${MINERS.basic.dailyEarnings}::bigint
+      + elite_miners * ${MINERS.elite.dailyEarnings}::bigint
+      + deluxe_miners * ${MINERS.deluxe.dailyEarnings}::bigint`,
+    filter: "basic_miners + elite_miners + deluxe_miners > 0",
+  },
+};
 
 export type PurchaseResult =
   | { readonly ok: true; readonly balance: number; readonly owned: number }
@@ -249,6 +309,172 @@ export class UserRepository {
     });
   }
 
+  /**
+   * Claims /daily and advances the streak. Both are decided from the locked
+   * row, so firing the command twice cannot pay out or count a day twice.
+   */
+  async claimDaily(params: {
+    userId: string;
+    cooldownMs: number;
+    baseAmount: number;
+    now: number;
+  }): Promise<DailyClaimResult> {
+    return this.mutate<DailyClaimResult>(params.userId, (row) => {
+      const lastClaimedAt = row.daily_work_at;
+
+      if (lastClaimedAt > 0 && params.now - lastClaimedAt < params.cooldownMs) {
+        return {
+          patch: undefined,
+          result: {
+            ok: false,
+            reason: "cooldown",
+            nextAt: lastClaimedAt + params.cooldownMs,
+          },
+        };
+      }
+
+      const streak = nextDailyStreak(
+        lastClaimedAt,
+        row.daily_streak,
+        params.now,
+      );
+      const bonus = dailyStreakBonus(streak);
+      const amount = params.baseAmount + bonus;
+      const balance = row.balance + amount;
+
+      return {
+        patch: {
+          balance,
+          daily_work_at: params.now,
+          daily_streak: streak,
+        },
+        result: { ok: true, amount, bonus, streak, balance },
+      };
+    });
+  }
+
+  /**
+   * Counts consecutive blackjack wins. A push leaves the streak as it is.
+   */
+  async recordBlackjackOutcome(
+    userId: string,
+    outcome: BlackjackOutcome,
+  ): Promise<void> {
+    if (outcome === "push") return;
+    const won = outcome === "won" || outcome === "natural";
+    await this.pool.query(
+      `UPDATE users
+       SET blackjack_win_streak = CASE WHEN $2 THEN blackjack_win_streak + 1 ELSE 0 END,
+           updated_at = now()
+       WHERE id = $1`,
+      [userId, won],
+    );
+  }
+
+  /**
+   * Attempts a robbery. Both rows are locked in id order, like a transfer, so
+   * the victim cannot spend the money mid-robbery and two people robbing each
+   * other at once cannot deadlock. Only balances move; miners are never
+   * touched.
+   */
+  async rob(params: {
+    robberId: string;
+    victimId: string;
+    cooldownMs: number;
+    now: number;
+    decide: (robberBalance: number, victimBalance: number) => RobDecision;
+  }): Promise<RobResult> {
+    await this.ensure(params.robberId);
+
+    return withTransaction(this.pool, async (client) => {
+      const { rows } = await client.query<UserRow>(
+        `SELECT * FROM users
+         WHERE id = ANY($1::text[])
+         ORDER BY id
+         FOR UPDATE`,
+        [[params.robberId, params.victimId]],
+      );
+
+      const robber = rows.find((row) => row.id === params.robberId);
+      const victim = rows.find((row) => row.id === params.victimId);
+      if (!robber) throw new Error(`Robber ${params.robberId} has no row`);
+      if (!victim) return { ok: false, reason: "victim_unknown" };
+
+      if (
+        robber.last_rob_at > 0 &&
+        params.now - robber.last_rob_at < params.cooldownMs
+      ) {
+        return {
+          ok: false,
+          reason: "cooldown",
+          nextAt: robber.last_rob_at + params.cooldownMs,
+        };
+      }
+
+      const decision = params.decide(robber.balance, victim.balance);
+      if (decision.kind === "rejected") {
+        return { ok: false, reason: decision.reason };
+      }
+
+      const moved =
+        decision.kind === "success" ? decision.amount : -decision.fine;
+      const robberBalance = robber.balance + moved;
+
+      const robberUpdate = buildUserUpdate(params.robberId, {
+        balance: robberBalance,
+        last_rob_at: params.now,
+        ...(decision.kind === "success"
+          ? { rob_successes: robber.rob_successes + 1 }
+          : { rob_failures: robber.rob_failures + 1 }),
+      });
+      const victimUpdate = buildUserUpdate(params.victimId, {
+        balance: victim.balance - moved,
+      });
+
+      for (const update of [robberUpdate, victimUpdate]) {
+        if (update) await client.query(update.text, [...update.values]);
+      }
+
+      return { ok: true, decision, robberBalance };
+    });
+  }
+
+  /** One page of a leaderboard, plus how many players it ranks in total. */
+  async leaderboardPage(
+    metric: LeaderboardMetric,
+    limit: number,
+    offset: number,
+  ): Promise<LeaderboardPage> {
+    const sql = LEADERBOARD_SQL[metric];
+    const { rows } = await this.pool.query<{
+      id: string;
+      value: number;
+      total: number;
+    }>(
+      `SELECT id, (${sql.value})::bigint AS value, COUNT(*) OVER ()::bigint AS total
+       FROM users
+       WHERE ${sql.filter}
+       ORDER BY value DESC, id ASC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+
+    // An offset past the end returns no rows and therefore no window total.
+    const total = rows[0]?.total ?? (await this.countLeaderboard(metric));
+
+    return {
+      rows: rows.map((row) => ({ id: row.id, value: row.value })),
+      total,
+    };
+  }
+
+  private async countLeaderboard(metric: LeaderboardMetric): Promise<number> {
+    const { rows } = await this.pool.query<{ total: number }>(
+      `SELECT COUNT(*)::bigint AS total FROM users WHERE ${LEADERBOARD_SQL[metric].filter}`,
+    );
+    return rows[0]?.total ?? 0;
+  }
+
   /** Buys one miner, checking affordability while holding the row lock. */
   async purchaseMiner(
     userId: string,
@@ -357,18 +583,6 @@ export class UserRepository {
 
       return { ok: true, senderBalance };
     });
-  }
-
-  /**
-   * The richest `limit` users, for the leaderboard. v2.0 pulled every profile
-   * over the wire and sorted in memory; this is an index scan.
-   */
-  async topByBalance(limit: number): Promise<UserProfile[]> {
-    const { rows } = await this.pool.query<UserRow>(
-      "SELECT * FROM users ORDER BY balance DESC, id ASC LIMIT $1",
-      [limit],
-    );
-    return rows.map(rowToProfile);
   }
 }
 

@@ -1,36 +1,39 @@
 import { SlashCommandBuilder } from "discord.js";
 import type { BotCommand } from "./types.js";
-import { leaderboardEmbed, type LeaderboardEntry } from "../ui/embeds.js";
+import {
+  isLeaderboardMetric,
+  LEADERBOARD_LABELS,
+  LEADERBOARD_METRICS,
+} from "../../domain/leaderboard.js";
+import { renderLeaderboard } from "../leaderboard-view.js";
 
-const MAX_ENTRIES = 10;
+const METRIC_OPTION = "nach";
 
 export const leaderboardCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName("leaderboard")
-    .setDescription("Schau dir die reichsten Spieler an"),
+    .setDescription("Schau dir die besten Spieler an")
+    .addStringOption((option) =>
+      option
+        .setName(METRIC_OPTION)
+        .setDescription("Wonach soll sortiert werden? Standard: Guthaben")
+        .setRequired(false)
+        .addChoices(
+          ...LEADERBOARD_METRICS.map((metric) => ({
+            name: LEADERBOARD_LABELS[metric],
+            value: metric,
+          })),
+        ),
+    ),
 
   async execute(interaction, ctx) {
+    const raw = interaction.options.getString(METRIC_OPTION) ?? "balance";
+    const metric = isLeaderboardMetric(raw) ? raw : "balance";
+
     // Fetching usernames takes more than Discord's 3 second reply window.
     await interaction.deferReply();
-
-    const top = await ctx.users.topByBalance(MAX_ENTRIES);
-
-    const entries: LeaderboardEntry[] = await Promise.all(
-      top.map(async (profile) => {
-        try {
-          const user = await interaction.client.users.fetch(profile.id);
-          return { username: user.displayName, balance: profile.balance };
-        } catch {
-          // A user who left every mutual guild can no longer be resolved;
-          // show the raw ID rather than dropping the whole leaderboard.
-          return {
-            username: `Unbekannt (${profile.id})`,
-            balance: profile.balance,
-          };
-        }
-      }),
+    await interaction.editReply(
+      await renderLeaderboard(interaction.client, ctx, metric, 0),
     );
-
-    await interaction.editReply({ embeds: [leaderboardEmbed(entries)] });
   },
 };

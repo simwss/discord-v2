@@ -5,6 +5,7 @@ import {
   bold,
   currency,
   duration,
+  mention,
   mentionList,
   relativeTime,
 } from "./format.js";
@@ -18,6 +19,11 @@ import { MINERS, minerEmoji } from "../../domain/miners.js";
 import { cryptoRng, type Rng } from "../../core/random.js";
 import { MINER_TYPES, type UserProfile } from "../../domain/user.js";
 import type { VoteTally } from "../../domain/vote.js";
+import { ACHIEVEMENTS_BY_ID } from "../../domain/achievements.js";
+import {
+  LEADERBOARD_LABELS,
+  type LeaderboardMetric,
+} from "../../domain/leaderboard.js";
 import type { Reels } from "../../domain/slots.js";
 
 export const GENERIC_ERROR = "Ein unerwarteter Fehler ist aufgetreten.";
@@ -56,8 +62,13 @@ export function cooldownEmbed(label: string, nextAt: number): EmbedBuilder {
 export function profileEmbed(
   profile: UserProfile,
   username: string,
+  achievementIds: readonly string[] = [],
   rng: Rng = cryptoRng,
 ): EmbedBuilder {
+  const badges = achievementIds
+    .map((id) => ACHIEVEMENTS_BY_ID.get(id)?.name)
+    .filter((name): name is string => name !== undefined);
+
   const minerLines = MINER_TYPES.map(
     (type) =>
       `${minerEmoji(rng)} ${MINERS[type].name}: ${bold(String(profile.miners[type]))}`,
@@ -69,34 +80,88 @@ export function profileEmbed(
     .addFields(
       { name: "Guthaben", value: bold(currency(profile.balance)) },
       { name: "Miner", value: minerLines },
+      {
+        name: "Daily-Streak",
+        value: `${profile.dailyStreak} ${profile.dailyStreak === 1 ? "Tag" : "Tage"}`,
+        inline: true,
+      },
+      {
+        name: "Abzeichen",
+        value: badges.length > 0 ? badges.join(" · ") : "Noch keine",
+        inline: true,
+      },
     );
 }
 
 export interface LeaderboardEntry {
   readonly username: string;
-  readonly balance: number;
+  readonly value: number;
+}
+
+function formatLeaderboardValue(
+  metric: LeaderboardMetric,
+  value: number,
+): string {
+  switch (metric) {
+    case "balance":
+      return currency(value);
+    case "miners":
+      return `${value.toLocaleString("de-DE")} Miner`;
+    case "yield":
+      return `${currency(value)} pro Tag`;
+  }
 }
 
 const PLACE_EMOJIS = ["🥇", "🥈", "🥉"] as const;
 
-export function leaderboardEmbed(
-  entries: readonly LeaderboardEntry[],
-): EmbedBuilder {
+export function leaderboardEmbed(params: {
+  metric: LeaderboardMetric;
+  entries: readonly LeaderboardEntry[];
+  /** Rank of the first entry minus one. */
+  offset: number;
+  page: number;
+  pages: number;
+}): EmbedBuilder {
   const body =
-    entries.length === 0
+    params.entries.length === 0
       ? "Keine Spieler gefunden."
-      : entries
+      : params.entries
           .map((entry, index) => {
-            const place = PLACE_EMOJIS[index] ?? `**${index + 1}.**`;
-            return `${place} ${entry.username}: ${bold(currency(entry.balance))}`;
+            const rank = params.offset + index;
+            const place = PLACE_EMOJIS[rank] ?? `**${rank + 1}.**`;
+            return `${place} ${entry.username}: ${bold(formatLeaderboardValue(params.metric, entry.value))}`;
           })
           .join("\n");
 
   return new EmbedBuilder()
-    .setTitle("Leaderboard")
+    .setTitle(`Leaderboard: ${LEADERBOARD_LABELS[params.metric]}`)
     .setDescription(body)
     .setColor(COLORS.NEUTRAL)
+    .setFooter({ text: `Seite ${params.page + 1} von ${params.pages}` })
     .setTimestamp();
+}
+
+export function robEmbed(params: {
+  victimId: string;
+  outcome: "success" | "caught";
+  amount: number;
+  balance: number;
+}): EmbedBuilder {
+  const victim = mention(params.victimId);
+  const success = params.outcome === "success";
+
+  return new EmbedBuilder()
+    .setTitle(success ? "Raub geglückt" : "Erwischt")
+    .setDescription(
+      success
+        ? `Du hast ${victim} ${bold(currency(params.amount))} abgenommen.`
+        : `Du wurdest erwischt und musst ${victim} ${bold(currency(params.amount))} Strafe zahlen.`,
+    )
+    .setColor(success ? COLORS.SUCCESS : COLORS.ERROR)
+    .addFields({
+      name: "Kontostand",
+      value: bold(currency(params.balance)),
+    });
 }
 
 export function voteEmbed(params: {

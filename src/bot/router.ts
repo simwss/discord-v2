@@ -6,6 +6,7 @@ import { errorEmbed, GENERIC_ERROR } from "./ui/embeds.js";
 import { respondEphemeral } from "./reply.js";
 import { isUserFacingError, toError, UserFacingError } from "../core/errors.js";
 import type { BotContext } from "./context.js";
+import { announceNewAchievements } from "./achievements.js";
 
 const BANNED_MESSAGE =
   "Hier ist kein Platz für Unterstützer eines Klassensystems";
@@ -42,6 +43,15 @@ export function createInteractionRouter(
       await dispatch(interaction, ctx);
     } catch (error) {
       await reportError(interaction, error, log);
+      return;
+    }
+
+    try {
+      await announceNewAchievements(interaction, ctx);
+    } catch (error) {
+      // An achievement is a bonus on top of a command that already worked;
+      // failing to grant one must not turn that into an error for the user.
+      log.warn({ err: toError(error) }, "could not check achievements");
     }
   };
 }

@@ -38,10 +38,9 @@ export const blackjackComponent: ComponentHandler = {
     // Clear the hand before crediting: if the credit fails the game is not
     // left playable, which would let the same hand be settled twice.
     await ctx.blackjack.clear(userId);
-    const balance = await ctx.users.credit(
-      userId,
-      payout(next.outcome ?? "lost", next.stake),
-    );
+    const outcome = next.outcome ?? "lost";
+    const balance = await ctx.users.credit(userId, payout(outcome, next.stake));
+    await ctx.users.recordBlackjackOutcome(userId, outcome);
 
     await updateMessage(interaction, {
       embeds: [blackjackEmbed(next, balance)],

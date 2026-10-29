@@ -19,6 +19,11 @@ export interface UserRow {
   hourly_work_at: number;
   daily_work_at: number;
   weekly_work_at: number;
+  daily_streak: number;
+  blackjack_win_streak: number;
+  last_rob_at: number;
+  rob_successes: number;
+  rob_failures: number;
 }
 
 /** Writable columns, and the only identifiers ever spliced into an UPDATE. */
@@ -32,6 +37,11 @@ export const USER_COLUMNS = [
   "hourly_work_at",
   "daily_work_at",
   "weekly_work_at",
+  "daily_streak",
+  "blackjack_win_streak",
+  "last_rob_at",
+  "rob_successes",
+  "rob_failures",
 ] as const;
 
 export type UserColumn = (typeof USER_COLUMNS)[number];
@@ -74,6 +84,11 @@ export function rowToProfile(row: UserRow): UserProfile {
       daily: row.daily_work_at,
       weekly: row.weekly_work_at,
     },
+    dailyStreak: row.daily_streak,
+    blackjackWinStreak: row.blackjack_win_streak,
+    lastRobAt: row.last_rob_at,
+    robSuccesses: row.rob_successes,
+    robFailures: row.rob_failures,
   };
 }
 

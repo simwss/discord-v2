@@ -9,6 +9,7 @@ import { runMigrations } from "./infra/db/migrate.js";
 import { UserRepository } from "./infra/db/user-repository.js";
 import { VoteRepository } from "./infra/db/vote-repository.js";
 import { BlackjackRepository } from "./infra/db/blackjack-repository.js";
+import { AchievementRepository } from "./infra/db/achievement-repository.js";
 import { TransferService } from "./services/transfer-service.js";
 import { startHealthServer } from "./infra/health-server.js";
 import { createBotClient, installShutdownHandlers } from "./bot/client.js";
@@ -35,6 +36,7 @@ async function main(): Promise<void> {
     users,
     votes: new VoteRepository(pool),
     blackjack: new BlackjackRepository(pool),
+    achievements: new AchievementRepository(pool),
     transfers: new TransferService(users, logger),
     rng: cryptoRng,
     clock: systemClock,

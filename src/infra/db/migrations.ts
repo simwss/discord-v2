@@ -82,4 +82,28 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: 2,
+    name: "streaks, robbing and achievements",
+    sql: `
+      ALTER TABLE users
+        ADD COLUMN daily_streak integer NOT NULL DEFAULT 0
+          CHECK (daily_streak >= 0),
+        ADD COLUMN blackjack_win_streak integer NOT NULL DEFAULT 0
+          CHECK (blackjack_win_streak >= 0),
+        ADD COLUMN last_rob_at bigint NOT NULL DEFAULT 0
+          CHECK (last_rob_at BETWEEN 0 AND ${MAX_SAFE}),
+        ADD COLUMN rob_successes integer NOT NULL DEFAULT 0
+          CHECK (rob_successes >= 0),
+        ADD COLUMN rob_failures integer NOT NULL DEFAULT 0
+          CHECK (rob_failures >= 0);
+
+      CREATE TABLE user_achievements (
+        user_id     text NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        achievement text NOT NULL,
+        unlocked_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, achievement)
+      );
+    `,
+  },
 ];

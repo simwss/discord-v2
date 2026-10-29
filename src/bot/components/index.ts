@@ -1,10 +1,12 @@
 import type { ComponentHandler } from "./types.js";
 import { blackjackComponent } from "./blackjack.js";
+import { leaderboardComponent } from "./leaderboard.js";
 import { rouletteComponent } from "./roulette.js";
 import { voteComponent } from "./vote.js";
 
 export const componentHandlers: readonly ComponentHandler[] = [
   blackjackComponent,
+  leaderboardComponent,
   rouletteComponent,
   voteComponent,
 ];

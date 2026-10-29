@@ -19,6 +19,11 @@ const row: UserRow = {
   hourly_work_at: 2_000,
   daily_work_at: 3_000,
   weekly_work_at: 4_000,
+  daily_streak: 3,
+  blackjack_win_streak: 2,
+  last_rob_at: 5_000,
+  rob_successes: 1,
+  rob_failures: 4,
 };
 
 describe("rowToProfile", () => {
@@ -30,6 +35,11 @@ describe("rowToProfile", () => {
       miners: { basic: 2, elite: 1, deluxe: 0 },
       lastMineAt: 1_000,
       workClaimedAt: { hourly: 2_000, daily: 3_000, weekly: 4_000 },
+      dailyStreak: 3,
+      blackjackWinStreak: 2,
+      lastRobAt: 5_000,
+      robSuccesses: 1,
+      robFailures: 4,
     });
   });
 });

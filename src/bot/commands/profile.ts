@@ -34,8 +34,12 @@ export const profileCommand: BotCommand = {
       );
     }
 
+    const achievements = await ctx.achievements.list(target.id);
+
     await interaction.reply({
-      embeds: [profileEmbed(profile, target.displayName, ctx.rng)],
+      embeds: [
+        profileEmbed(profile, target.displayName, achievements, ctx.rng),
+      ],
     });
   },
 };

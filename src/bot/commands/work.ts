@@ -46,6 +46,45 @@ function createWorkCommand(kind: WorkKind): BotCommand {
     async execute(interaction, ctx) {
       const amount = definition.reward(ctx.rng);
 
+      if (kind === "daily") {
+        const daily = await ctx.users.claimDaily({
+          userId: interaction.user.id,
+          cooldownMs: definition.cooldownMs,
+          baseAmount: amount,
+          now: ctx.clock.now(),
+        });
+
+        if (!daily.ok) {
+          await interaction.reply({
+            embeds: [cooldownEmbed(definition.label, daily.nextAt)],
+          });
+          return;
+        }
+
+        const streakText =
+          daily.bonus > 0
+            ? `${daily.streak} Tage am Stück, Bonus: ${bold(currency(daily.bonus))}`
+            : `${daily.streak} ${daily.streak === 1 ? "Tag" : "Tage"}`;
+
+        await interaction.reply({
+          embeds: [
+            successEmbed(
+              "Ausgezahlt",
+              successMessage(kind, daily.amount, ctx.rng),
+              [
+                { name: "Streak", value: streakText, inline: true },
+                {
+                  name: "Kontostand",
+                  value: bold(currency(daily.balance)),
+                  inline: true,
+                },
+              ],
+            ),
+          ],
+        });
+        return;
+      }
+
       // The cooldown is checked inside the transaction: v1 read the timestamp,
       // then wrote, so firing the command twice in the same tick paid twice.
       const result = await ctx.users.claimWork({

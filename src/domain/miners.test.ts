@@ -24,6 +24,11 @@ const profileWith = (
   },
   lastMineAt,
   workClaimedAt: { hourly: 0, daily: 0, weekly: 0 },
+  dailyStreak: 0,
+  blackjackWinStreak: 0,
+  lastRobAt: 0,
+  robSuccesses: 0,
+  robFailures: 0,
 });
 
 describe("dailyYield", () => {

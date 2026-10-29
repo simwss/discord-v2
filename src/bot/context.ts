@@ -4,6 +4,7 @@ import type { Rng } from "../core/random.js";
 import type { UserRepository } from "../infra/db/user-repository.js";
 import type { VoteRepository } from "../infra/db/vote-repository.js";
 import type { BlackjackRepository } from "../infra/db/blackjack-repository.js";
+import type { AchievementRepository } from "../infra/db/achievement-repository.js";
 import type { TransferService } from "../services/transfer-service.js";
 
 /**
@@ -15,6 +16,7 @@ export interface BotContext {
   readonly users: UserRepository;
   readonly votes: VoteRepository;
   readonly blackjack: BlackjackRepository;
+  readonly achievements: AchievementRepository;
   readonly transfers: TransferService;
   readonly rng: Rng;
   readonly clock: Clock;

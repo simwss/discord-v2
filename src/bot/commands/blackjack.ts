@@ -35,11 +35,10 @@ export const blackjackCommand: BotCommand = {
     // A natural pays out immediately; there is nothing left to decide.
     if (isNatural(game.player)) {
       const settled = stand(game);
-      const balance = await ctx.users.credit(
-        userId,
-        payout(settled.outcome ?? "lost", stake),
-      );
+      const outcome = settled.outcome ?? "lost";
+      const balance = await ctx.users.credit(userId, payout(outcome, stake));
       await ctx.blackjack.clear(userId);
+      await ctx.users.recordBlackjackOutcome(userId, outcome);
       await interaction.reply({ embeds: [blackjackEmbed(settled, balance)] });
       return;
     }
