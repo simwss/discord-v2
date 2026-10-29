@@ -15,7 +15,6 @@ export const MIN_ROBBER_BALANCE = 1_000;
 
 const MIN_STEAL_PERCENT = 10;
 const MAX_STEAL_PERCENT = 30;
-const FINE_PERCENT = 15;
 
 export type RobDecision =
   | {
@@ -26,8 +25,13 @@ export type RobDecision =
   | { readonly kind: "caught"; readonly fine: number };
 
 /**
- * Only the victim's balance is at stake; miners are never touched. A caught
- * robber pays the fine to the victim.
+ * Only the victim's balance is at stake; miners are never touched.
+ *
+ * The loot is 10 to 30 percent of the victim's balance, but never more than
+ * the robber owns, and a caught robber pays exactly that amount to the
+ * victim. Gain and risk are therefore always the same size, and with a 40
+ * percent success chance robbing loses money on average. Without the cap, a
+ * nearly empty account could rob a rich player and risk almost nothing.
  */
 export function resolveRob(
   rng: Rng,
@@ -41,21 +45,14 @@ export function resolveRob(
     return { kind: "rejected", reason: "robber_poor" };
   }
 
-  if (rng.int(100) < ROB_SUCCESS_PERCENT) {
-    const percent =
-      MIN_STEAL_PERCENT + rng.int(MAX_STEAL_PERCENT - MIN_STEAL_PERCENT + 1);
-    return {
-      kind: "success",
-      amount: Math.max(1, Math.floor((victimBalance * percent) / 100)),
-    };
-  }
-
-  const fine = Math.min(
+  const percent =
+    MIN_STEAL_PERCENT + rng.int(MAX_STEAL_PERCENT - MIN_STEAL_PERCENT + 1);
+  const stake = Math.min(
     robberBalance,
-    Math.max(
-      MIN_ROBBER_BALANCE,
-      Math.floor((robberBalance * FINE_PERCENT) / 100),
-    ),
+    Math.max(1, Math.floor((victimBalance * percent) / 100)),
   );
-  return { kind: "caught", fine };
+
+  return rng.int(100) < ROB_SUCCESS_PERCENT
+    ? { kind: "success", amount: stake }
+    : { kind: "caught", fine: stake };
 }
