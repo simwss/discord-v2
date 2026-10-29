@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clampPage, LEADERBOARD_PAGE_SIZE, pageCount } from "./leaderboard.js";
+import {
+  clampPage,
+  isLeaderboardMetric,
+  LEADERBOARD_PAGE_SIZE,
+  pageCount,
+} from "./leaderboard.js";
 
 describe("pageCount", () => {
   it("is at least one page", () => {
@@ -23,5 +28,12 @@ describe("clampPage", () => {
   it("rejects negative and fractional pages", () => {
     expect(clampPage(-1, 25)).toBe(0);
     expect(clampPage(1.5, 25)).toBe(0);
+  });
+});
+
+describe("isLeaderboardMetric", () => {
+  it("accepts known metrics only", () => {
+    expect(isLeaderboardMetric("yield")).toBe(true);
+    expect(isLeaderboardMetric("drop table")).toBe(false);
   });
 });
