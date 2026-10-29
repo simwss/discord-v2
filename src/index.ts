@@ -13,6 +13,7 @@ import { AchievementRepository } from "./infra/db/achievement-repository.js";
 import { TransferService } from "./services/transfer-service.js";
 import { startHealthServer } from "./infra/health-server.js";
 import { createBotClient, installShutdownHandlers } from "./bot/client.js";
+import { syncCommands } from "./bot/command-registration.js";
 import type { BotContext } from "./bot/context.js";
 
 /**
@@ -29,6 +30,8 @@ async function main(): Promise<void> {
   // Before the gateway connects, so a schema problem surfaces as a failed
   // start rather than as commands failing one at a time in production.
   await runMigrations(pool, logger);
+  // A deploy that changed a command takes effect without a manual step.
+  await syncCommands(pool, env.discord, logger);
 
   const users = new UserRepository(pool);
 

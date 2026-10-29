@@ -56,15 +56,16 @@ gh attestation verify oci://ghcr.io/simwss/discord-v2:latest -R simwss/discord-v
    required — the bot only asks for `Guilds`.
 3. Under **General Information**, copy the Application ID into `DISCORD_APP_ID`.
 4. Invite the bot with the `bot` and `applications.commands` scopes.
-5. Publish the slash commands:
+5. Start the bot. At startup it registers the slash commands whenever they
+   differ from the last registration, so a deploy that changes a command
+   needs no extra step. To force a registration by hand:
 
    ```bash
    npm run register
    ```
 
    Set `DISCORD_GUILD_ID` to register to one guild — that takes effect
-   immediately, whereas global registration can take up to an hour. Re-run this
-   whenever a command's name, description or options change.
+   immediately, whereas global registration can take up to an hour.
 
 ## Local development
 

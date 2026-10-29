@@ -120,4 +120,17 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: 4,
+    name: "bot state",
+    sql: `
+      -- Small key/value store for the bot's own bookkeeping, such as the
+      -- fingerprint of the last slash-command registration.
+      CREATE TABLE bot_state (
+        key        text PRIMARY KEY,
+        value      text NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
 ];
