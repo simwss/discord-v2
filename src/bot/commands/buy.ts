@@ -48,7 +48,9 @@ export const buyCommand: BotCommand = {
     }
 
     await interaction.reply({
-      embeds: [minerPurchaseEmbed(miner, result.balance, result.owned)],
+      embeds: [
+        minerPurchaseEmbed(miner, result.balance, result.owned, ctx.rng),
+      ],
     });
   },
 };

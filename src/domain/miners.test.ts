@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DAY_MS } from "../core/clock.js";
-import { computeMiningYield, dailyYield, MINERS } from "./miners.js";
+import {
+  computeMiningYield,
+  dailyYield,
+  MINERS,
+  minerEmoji,
+  sellPrice,
+} from "./miners.js";
+import { seededRng } from "../core/random.js";
 import { STARTING_BALANCE, type UserProfile } from "./user.js";
 
 const profileWith = (
@@ -96,5 +103,27 @@ describe("computeMiningYield", () => {
       expect(miner.dailyEarnings).toBeGreaterThan(0);
       expect(miner.cost / miner.dailyEarnings).toBe(100);
     }
+  });
+});
+
+describe("sellPrice", () => {
+  it("returns half the purchase price per miner", () => {
+    expect(sellPrice("basic")).toBe(MINERS.basic.cost / 2);
+    expect(sellPrice("elite", 3)).toBe((3 * MINERS.elite.cost) / 2);
+  });
+});
+
+describe("minerEmoji", () => {
+  it("is a child emoji followed by a skin tone modifier", () => {
+    const rng = seededRng(42);
+    for (let i = 0; i < 50; i++) {
+      expect(minerEmoji(rng)).toMatch(/^(🧒|👦|👧)(🏻|🏼|🏽|🏾|🏿)$/u);
+    }
+  });
+
+  it("varies the skin tone", () => {
+    const rng = seededRng(7);
+    const seen = new Set(Array.from({ length: 100 }, () => minerEmoji(rng)));
+    expect(seen.size).toBeGreaterThan(3);
   });
 });

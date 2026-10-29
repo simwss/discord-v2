@@ -14,7 +14,8 @@ import {
   type Card,
 } from "../../domain/blackjack.js";
 import type { MinerDefinition } from "../../domain/miners.js";
-import { MINERS } from "../../domain/miners.js";
+import { MINERS, minerEmoji } from "../../domain/miners.js";
+import { cryptoRng, type Rng } from "../../core/random.js";
 import { MINER_TYPES, type UserProfile } from "../../domain/user.js";
 import type { VoteTally } from "../../domain/vote.js";
 import type { Reels } from "../../domain/slots.js";
@@ -55,9 +56,11 @@ export function cooldownEmbed(label: string, nextAt: number): EmbedBuilder {
 export function profileEmbed(
   profile: UserProfile,
   username: string,
+  rng: Rng = cryptoRng,
 ): EmbedBuilder {
   const minerLines = MINER_TYPES.map(
-    (type) => `${MINERS[type].name}: ${bold(String(profile.miners[type]))}`,
+    (type) =>
+      `${minerEmoji(rng)} ${MINERS[type].name}: ${bold(String(profile.miners[type]))}`,
   ).join("\n");
 
   return new EmbedBuilder()
@@ -130,13 +133,45 @@ export function minerPurchaseEmbed(
   miner: MinerDefinition,
   balance: number,
   owned: number,
+  rng: Rng = cryptoRng,
 ): EmbedBuilder {
   return successEmbed(
     "Miner gekauft",
-    `Du hast einen ${bold(miner.name)} für ${bold(currency(miner.cost))} gekauft.`,
+    `Du hast einen ${minerEmoji(rng)} ${bold(miner.name)} für ${bold(currency(miner.cost))} gekauft.`,
     [
       { name: "Kontostand", value: bold(currency(balance)), inline: true },
-      { name: miner.name, value: bold(String(owned)), inline: true },
+      {
+        name: `${minerEmoji(rng)} ${miner.name}`,
+        value: bold(String(owned)),
+        inline: true,
+      },
+    ],
+  );
+}
+
+export function minerSaleEmbed(params: {
+  miner: MinerDefinition;
+  count: number;
+  proceeds: number;
+  balance: number;
+  owned: number;
+  rng?: Rng;
+}): EmbedBuilder {
+  const rng = params.rng ?? cryptoRng;
+  return successEmbed(
+    "Miner verkauft",
+    `Du hast ${bold(`${params.count}× ${params.miner.name}`)} ${minerEmoji(rng)} für ${bold(currency(params.proceeds))} verkauft.`,
+    [
+      {
+        name: "Kontostand",
+        value: bold(currency(params.balance)),
+        inline: true,
+      },
+      {
+        name: `${minerEmoji(rng)} ${params.miner.name}`,
+        value: bold(String(params.owned)),
+        inline: true,
+      },
     ],
   );
 }

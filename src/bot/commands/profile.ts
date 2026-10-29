@@ -35,7 +35,7 @@ export const profileCommand: BotCommand = {
     }
 
     await interaction.reply({
-      embeds: [profileEmbed(profile, target.displayName)],
+      embeds: [profileEmbed(profile, target.displayName, ctx.rng)],
     });
   },
 };

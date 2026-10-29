@@ -10,6 +10,7 @@ import { leaderboardCommand } from "./leaderboard.js";
 import { plinkoballCommand } from "./plinkoball.js";
 import { profileCommand } from "./profile.js";
 import { rouletteCommand } from "./roulette.js";
+import { sellCommand } from "./sell.js";
 import { sendCommand } from "./send.js";
 import { slotsCommand } from "./slots.js";
 import { dailyCommand, weeklyCommand, workCommand } from "./work.js";
@@ -32,6 +33,7 @@ export const commands: readonly BotCommand[] = [
   plinkoballCommand,
   profileCommand,
   rouletteCommand,
+  sellCommand,
   sendCommand,
   slotsCommand,
   weeklyCommand,

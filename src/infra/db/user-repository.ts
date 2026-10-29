@@ -15,7 +15,7 @@ import {
   type UserProfile,
   type WorkKind,
 } from "../../domain/user.js";
-import { MINERS } from "../../domain/miners.js";
+import { MINERS, sellPrice } from "../../domain/miners.js";
 
 /** A mutation that either writes the given columns or aborts, carrying a result. */
 interface Mutation<T> {
@@ -38,6 +38,19 @@ export type ClaimResult =
 export type PurchaseResult =
   | { readonly ok: true; readonly balance: number; readonly owned: number }
   | { readonly ok: false; readonly reason: "insufficient_funds" };
+
+export type SaleResult =
+  | {
+      readonly ok: true;
+      readonly balance: number;
+      readonly owned: number;
+      readonly proceeds: number;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: "not_enough_miners";
+      readonly owned: number;
+    };
 
 export type TransferOutcome =
   | { readonly ok: true; readonly senderBalance: number }
@@ -258,6 +271,38 @@ export class UserRepository {
       return {
         patch: { balance, [column]: owned },
         result: { ok: true, balance, owned },
+      };
+    });
+  }
+
+  /**
+   * Sells `count` miners of one type for half their purchase price, checking
+   * ownership while holding the row lock so the same miner cannot be sold
+   * twice by concurrent commands.
+   */
+  async sellMiners(
+    userId: string,
+    type: MinerType,
+    count: number,
+  ): Promise<SaleResult> {
+    const column = MINER_COLUMN[type];
+
+    return this.mutate<SaleResult>(userId, (row) => {
+      const current = row[column];
+      if (current < count) {
+        return {
+          patch: undefined,
+          result: { ok: false, reason: "not_enough_miners", owned: current },
+        };
+      }
+
+      const proceeds = sellPrice(type, count);
+      const owned = current - count;
+      const balance = row.balance + proceeds;
+
+      return {
+        patch: { balance, [column]: owned },
+        result: { ok: true, balance, owned, proceeds },
       };
     });
   }

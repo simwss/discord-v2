@@ -1,5 +1,6 @@
 import { DAY_MS } from "../core/clock.js";
 import { MINER_TYPES, type MinerType, type UserProfile } from "./user.js";
+import type { Rng } from "../core/random.js";
 
 export interface MinerDefinition {
   readonly type: MinerType;
@@ -65,4 +66,19 @@ export function computeMiningYield(
     elapsedMs,
     amount: Math.floor((dailyYield(profile.miners) * elapsedMs) / DAY_MS),
   };
+}
+
+/** Selling returns half of the purchase price, rounded down. */
+export const SELL_RATIO = 0.5;
+
+export function sellPrice(type: MinerType, count = 1): number {
+  return Math.floor(MINERS[type].cost * SELL_RATIO) * count;
+}
+
+const CHILD_EMOJIS = ["🧒", "👦", "👧"] as const;
+const SKIN_TONES = ["🏻", "🏼", "🏽", "🏾", "🏿"] as const;
+
+/** A child emoji with a random skin tone, shown next to the miners. */
+export function minerEmoji(rng: Rng): string {
+  return `${rng.pick(CHILD_EMOJIS)}${rng.pick(SKIN_TONES)}`;
 }
