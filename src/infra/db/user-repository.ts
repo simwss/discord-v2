@@ -658,7 +658,10 @@ export class UserRepository {
   }
 }
 
-async function lockUser(client: PoolClient, userId: string): Promise<UserRow> {
+export async function lockUser(
+  client: PoolClient,
+  userId: string,
+): Promise<UserRow> {
   const { rows } = await client.query<UserRow>(UPSERT_AND_LOCK, [
     userId,
     STARTING_BALANCE,

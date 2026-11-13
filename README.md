@@ -103,6 +103,24 @@ See [`.env.example`](.env.example) for the full list.
 It is checked against that scheme specifically, because the most likely mistake
 when upgrading from 2.0 is leaving the old Firebase `DATABASE_URL` in place.
 
+### Stock and crypto trading
+
+`/long` and `/short` open a leveraged position (1–100x) on a real US stock or
+ETF (by ISIN such as `US0378331005` or ticker such as `AAPL`) or a crypto pair
+(such as `BTC-USD`). `/kurs` shows a price, `/portfolio` the open positions and
+`/close` closes one.
+
+- Stock prices come from [Finnhub](https://finnhub.io). Set
+  `FINNHUB_API_KEY`; without it only crypto can be traded. The free plan only
+  covers US exchanges and allows 60 calls a minute, which the bot budgets
+  itself.
+- Crypto prices come from Coinbase's public API; no key needed.
+- Stocks can only be traded while the US market is open, so nobody trades
+  against a price that is hours old. Crypto trades around the clock.
+- Opening and closing each cost 0.05% of the position size.
+- A background job checks prices every minute and liquidates a position once
+  it has lost 90% of its stake. A player can never lose more than the stake.
+
 ## Architecture
 
 ```
@@ -214,6 +232,8 @@ users            id, balance, authorised, {basic,elite,deluxe}_miners,
 votes            id, description, author_id, closed, created_at
 vote_ballots     (vote_id, user_id) -> choice
 blackjack_games  user_id -> stake, deck, dealer, player, status, outcome
+positions        id, user_id, symbol, side, leverage, margin, entry_price,
+                 status (open/closed/liquidated), exit_price, payout
 ```
 
 Every column is `NOT NULL` with a default, and the constraints carry the rules

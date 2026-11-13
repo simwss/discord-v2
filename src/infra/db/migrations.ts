@@ -133,4 +133,36 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: 5,
+    name: "trading positions",
+    sql: `
+      -- One row per leveraged long or short. The stake is already debited
+      -- from the balance while the position is open; closing or liquidating
+      -- it records what was paid back.
+      CREATE TABLE positions (
+        id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        user_id     text   NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        symbol      text   NOT NULL,
+        kind        text   NOT NULL CHECK (kind IN ('stock', 'crypto')),
+        name        text   NOT NULL,
+        side        text   NOT NULL CHECK (side IN ('long', 'short')),
+        leverage    integer NOT NULL CHECK (leverage BETWEEN 1 AND 100),
+        margin      bigint NOT NULL CHECK (margin > 0 AND margin <= ${MAX_SAFE}),
+        entry_price double precision NOT NULL CHECK (entry_price > 0),
+        opened_at   bigint NOT NULL CHECK (opened_at BETWEEN 0 AND ${MAX_SAFE}),
+        status      text   NOT NULL DEFAULT 'open'
+                      CHECK (status IN ('open', 'closed', 'liquidated')),
+        exit_price  double precision,
+        payout      bigint CHECK (payout BETWEEN 0 AND ${MAX_SAFE}),
+        closed_at   bigint CHECK (closed_at BETWEEN 0 AND ${MAX_SAFE})
+      );
+
+      CREATE INDEX positions_open_user_idx ON positions (user_id)
+        WHERE status = 'open';
+      -- The liquidation job reads open positions per symbol every minute.
+      CREATE INDEX positions_open_symbol_idx ON positions (symbol)
+        WHERE status = 'open';
+    `,
+  },
 ];

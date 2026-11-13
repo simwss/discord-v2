@@ -57,6 +57,9 @@ const envSchema = z.object({
   }),
 
   bannedUserIds: csvUserIds,
+
+  // Optional: without it, only crypto can be traded.
+  finnhubApiKey: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -65,6 +68,7 @@ function readEnv(): Env {
   // An empty DISCORD_GUILD_ID in a .env file means "register globally", not
   // "register to the guild named empty string".
   const guildId = process.env.DISCORD_GUILD_ID?.trim();
+  const finnhubApiKey = process.env.FINNHUB_API_KEY?.trim();
 
   const result = envSchema.safeParse({
     nodeEnv: process.env.NODE_ENV,
@@ -81,6 +85,7 @@ function readEnv(): Env {
       ssl: process.env.DATABASE_SSL,
     },
     bannedUserIds: process.env.BANNED_USER_IDS,
+    finnhubApiKey: finnhubApiKey === "" ? undefined : finnhubApiKey,
   });
 
   if (!result.success) {

@@ -11,6 +11,12 @@ import { VoteRepository } from "./infra/db/vote-repository.js";
 import { BlackjackRepository } from "./infra/db/blackjack-repository.js";
 import { AchievementRepository } from "./infra/db/achievement-repository.js";
 import { TransferService } from "./services/transfer-service.js";
+import { PositionRepository } from "./infra/db/position-repository.js";
+import { FinnhubClient } from "./infra/market/finnhub.js";
+import { CoinbaseClient } from "./infra/market/coinbase.js";
+import { MarketService } from "./services/market-service.js";
+import { LiquidationJob } from "./services/liquidation-job.js";
+import { liquidationNoticeEmbed } from "./bot/ui/trading-embeds.js";
 import { startHealthServer } from "./infra/health-server.js";
 import { createBotClient, installShutdownHandlers } from "./bot/client.js";
 import { syncCommands } from "./bot/command-registration.js";
@@ -34,6 +40,16 @@ async function main(): Promise<void> {
   await syncCommands(pool, env.discord, logger);
 
   const users = new UserRepository(pool);
+  const positions = new PositionRepository(pool);
+
+  if (!env.finnhubApiKey) {
+    logger.warn("FINNHUB_API_KEY is not set; only crypto can be traded");
+  }
+  const market = new MarketService(
+    env.finnhubApiKey ? new FinnhubClient(env.finnhubApiKey) : null,
+    new CoinbaseClient(),
+    systemClock,
+  );
 
   const ctx: BotContext = {
     users,
@@ -41,6 +57,8 @@ async function main(): Promise<void> {
     blackjack: new BlackjackRepository(pool),
     achievements: new AchievementRepository(pool),
     transfers: new TransferService(users, logger),
+    positions,
+    market,
     rng: cryptoRng,
     clock: systemClock,
     logger,
@@ -48,6 +66,18 @@ async function main(): Promise<void> {
   };
 
   const client = createBotClient(ctx);
+
+  const liquidations = new LiquidationJob(
+    positions,
+    market,
+    systemClock,
+    logger,
+    async (position, price) => {
+      const user = await client.users.fetch(position.userId);
+      await user.send({ embeds: [liquidationNoticeEmbed(position, price)] });
+    },
+  );
+  liquidations.start();
 
   const health = startHealthServer(
     env.healthPort,
@@ -62,6 +92,7 @@ async function main(): Promise<void> {
   );
 
   installShutdownHandlers(client, logger, async () => {
+    liquidations.stop();
     await new Promise<void>((resolve) => {
       if (!health) {
         resolve();

@@ -6,6 +6,8 @@ import type { VoteRepository } from "../infra/db/vote-repository.js";
 import type { BlackjackRepository } from "../infra/db/blackjack-repository.js";
 import type { AchievementRepository } from "../infra/db/achievement-repository.js";
 import type { TransferService } from "../services/transfer-service.js";
+import type { PositionRepository } from "../infra/db/position-repository.js";
+import type { MarketService } from "../services/market-service.js";
 
 /**
  * Everything a handler is allowed to reach for. Passing this explicitly keeps
@@ -18,6 +20,8 @@ export interface BotContext {
   readonly blackjack: BlackjackRepository;
   readonly achievements: AchievementRepository;
   readonly transfers: TransferService;
+  readonly positions: PositionRepository;
+  readonly market: MarketService;
   readonly rng: Rng;
   readonly clock: Clock;
   readonly logger: Logger;

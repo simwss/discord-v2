@@ -15,6 +15,13 @@ import { rouletteCommand } from "./roulette.js";
 import { sellCommand } from "./sell.js";
 import { sendCommand } from "./send.js";
 import { slotsCommand } from "./slots.js";
+import {
+  closeCommand,
+  kursCommand,
+  longCommand,
+  portfolioCommand,
+  shortCommand,
+} from "./trading.js";
 import { dailyCommand, weeklyCommand, workCommand } from "./work.js";
 
 /**
@@ -28,17 +35,22 @@ export const commands: readonly BotCommand[] = [
   blackjackCommand,
   bountyCommand,
   buyCommand,
+  closeCommand,
   coinflipCommand,
   collectCommand,
   dailyCommand,
   dicerollCommand,
+  kursCommand,
   leaderboardCommand,
+  longCommand,
   plinkoballCommand,
+  portfolioCommand,
   profileCommand,
   robCommand,
   rouletteCommand,
   sellCommand,
   sendCommand,
+  shortCommand,
   slotsCommand,
   weeklyCommand,
   workCommand,
