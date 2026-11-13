@@ -1,24 +1,22 @@
-import { DAY_MS } from "../core/clock.js";
-
-/**
- * A streak survives as long as the next /daily lands within this window of
- * the previous one. The cooldown is one day, so this leaves a full day of
- * slack before the streak breaks.
- */
-export const DAILY_STREAK_WINDOW_MS = 2 * DAY_MS;
+import { DAY_MS, startOfUtcDay } from "../core/clock.js";
 
 export const STREAK_BONUS_PER_DAY = 500;
 
 /** The bonus stops growing after this many consecutive days. */
 export const MAX_STREAK_BONUS_DAYS = 10;
 
+/**
+ * /daily resets at 00:00 UTC, so a streak continues when the previous claim
+ * was made on the UTC day before this one.
+ */
 export function nextDailyStreak(
   lastClaimedAt: number,
   previousStreak: number,
   now: number,
 ): number {
   const continues =
-    lastClaimedAt > 0 && now - lastClaimedAt < DAILY_STREAK_WINDOW_MS;
+    lastClaimedAt > 0 &&
+    startOfUtcDay(lastClaimedAt) === startOfUtcDay(now) - DAY_MS;
   return continues ? previousStreak + 1 : 1;
 }
 

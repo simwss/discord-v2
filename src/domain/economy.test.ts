@@ -1,21 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { seededRng } from "../core/random.js";
 import { GameRuleError } from "../core/errors.js";
-import { DAY_MS, HOUR_MS, WEEK_MS } from "../core/clock.js";
+import { HOUR_MS } from "../core/clock.js";
 import {
   assertValidStake,
   assertValidTransfer,
   isCooldownActive,
   MAX_STAKE,
-  nextAvailableAt,
   WORK,
 } from "./economy.js";
 
 describe("WORK", () => {
-  it("uses the documented cooldowns", () => {
-    expect(WORK.hourly.cooldownMs).toBe(HOUR_MS);
-    expect(WORK.daily.cooldownMs).toBe(DAY_MS);
-    expect(WORK.weekly.cooldownMs).toBe(WEEK_MS);
+  it("keeps /work on a rolling one-hour cooldown", () => {
+    expect(WORK.hourly.nextAvailableAt(1_000)).toBe(1_000 + HOUR_MS);
+  });
+
+  it("resets /daily at the next 00:00 UTC", () => {
+    const claimedAt = Date.UTC(2026, 10, 13, 23, 59);
+    expect(WORK.daily.nextAvailableAt(claimedAt)).toBe(Date.UTC(2026, 10, 14));
+    expect(WORK.daily.nextAvailableAt(Date.UTC(2026, 10, 14))).toBe(
+      Date.UTC(2026, 10, 15),
+    );
+  });
+
+  it("resets /weekly on the next Monday at 00:00 UTC", () => {
+    // 2026-11-13 is a Friday, 2026-11-16 a Monday.
+    const friday = Date.UTC(2026, 10, 13, 12);
+    expect(WORK.weekly.nextAvailableAt(friday)).toBe(Date.UTC(2026, 10, 16));
+    expect(WORK.weekly.nextAvailableAt(Date.UTC(2026, 10, 16))).toBe(
+      Date.UTC(2026, 10, 23),
+    );
+    expect(WORK.weekly.nextAvailableAt(Date.UTC(2026, 10, 15, 23))).toBe(
+      Date.UTC(2026, 10, 16),
+    );
   });
 
   it("keeps the hourly reward in its advertised band", () => {
@@ -35,19 +52,26 @@ describe("WORK", () => {
 });
 
 describe("isCooldownActive", () => {
+  const hourly = WORK.hourly.nextAvailableAt;
+
   it("is inactive for a user who never claimed", () => {
-    expect(isCooldownActive(0, HOUR_MS, 5_000)).toBe(false);
+    expect(isCooldownActive(0, hourly, 5_000)).toBe(false);
   });
 
   it("is active inside the window and inactive at the boundary", () => {
-    expect(isCooldownActive(1_000, HOUR_MS, 1_000 + HOUR_MS - 1)).toBe(true);
-    expect(isCooldownActive(1_000, HOUR_MS, 1_000 + HOUR_MS)).toBe(false);
+    expect(isCooldownActive(1_000, hourly, 1_000 + HOUR_MS - 1)).toBe(true);
+    expect(isCooldownActive(1_000, hourly, 1_000 + HOUR_MS)).toBe(false);
   });
-});
 
-describe("nextAvailableAt", () => {
-  it("adds the cooldown to the last claim", () => {
-    expect(nextAvailableAt(1_000, HOUR_MS)).toBe(1_000 + HOUR_MS);
+  it("frees /daily at midnight UTC even if the claim was minutes earlier", () => {
+    const claimedAt = Date.UTC(2026, 10, 13, 23, 50);
+    const daily = WORK.daily.nextAvailableAt;
+    expect(
+      isCooldownActive(claimedAt, daily, Date.UTC(2026, 10, 13, 23, 59)),
+    ).toBe(true);
+    expect(isCooldownActive(claimedAt, daily, Date.UTC(2026, 10, 14))).toBe(
+      false,
+    );
   });
 });
 

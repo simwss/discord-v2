@@ -1,4 +1,10 @@
-import { DAY_MS, HOUR_MS, WEEK_MS } from "../core/clock.js";
+import {
+  DAY_MS,
+  HOUR_MS,
+  startOfUtcDay,
+  startOfUtcWeek,
+  WEEK_MS,
+} from "../core/clock.js";
 import type { Rng } from "../core/random.js";
 import { GameRuleError } from "../core/errors.js";
 import type { WorkKind } from "./user.js";
@@ -7,7 +13,8 @@ export interface WorkDefinition {
   readonly kind: WorkKind;
   /** German label used in cooldown messages. */
   readonly label: string;
-  readonly cooldownMs: number;
+  /** When the reward can be claimed again after a claim at `lastClaimedAt`. */
+  readonly nextAvailableAt: (lastClaimedAt: number) => number;
   readonly reward: (rng: Rng) => number;
 }
 
@@ -15,36 +22,35 @@ export const WORK: Readonly<Record<WorkKind, WorkDefinition>> = {
   hourly: {
     kind: "hourly",
     label: "stündliche",
-    cooldownMs: HOUR_MS,
+    nextAvailableAt: (last) => last + HOUR_MS,
     reward: (rng) => 900 + rng.int(100),
   },
   daily: {
     kind: "daily",
     label: "tägliche",
-    cooldownMs: DAY_MS,
+    // Resets for everyone at 00:00 UTC rather than 24h after each claim.
+    nextAvailableAt: (last) => startOfUtcDay(last) + DAY_MS,
     reward: () => 5_000,
   },
   weekly: {
     kind: "weekly",
     label: "wöchentliche",
-    cooldownMs: WEEK_MS,
+    // Resets for everyone on Monday at 00:00 UTC.
+    nextAvailableAt: (last) => startOfUtcWeek(last) + WEEK_MS,
     reward: () => 100_000,
   },
 };
 
+/**
+ * Whether a reward claimed at `lastClaimedAt` is still locked at `now`.
+ * Zero means the user never claimed it.
+ */
 export function isCooldownActive(
   lastClaimedAt: number,
-  cooldownMs: number,
+  nextAvailableAt: (lastClaimedAt: number) => number,
   now: number,
 ): boolean {
-  return lastClaimedAt > 0 && now - lastClaimedAt < cooldownMs;
-}
-
-export function nextAvailableAt(
-  lastClaimedAt: number,
-  cooldownMs: number,
-): number {
-  return lastClaimedAt + cooldownMs;
+  return lastClaimedAt > 0 && now < nextAvailableAt(lastClaimedAt);
 }
 
 export const MAX_STAKE = 1_000_000_000_000;

@@ -17,6 +17,7 @@ import {
 } from "../../domain/user.js";
 import { MINERS, sellPrice } from "../../domain/miners.js";
 import { dailyStreakBonus, nextDailyStreak } from "../../domain/streak.js";
+import { isCooldownActive } from "../../domain/economy.js";
 import type { RobDecision } from "../../domain/rob.js";
 import type { BlackjackOutcome } from "../../domain/blackjack.js";
 import type { LeaderboardMetric } from "../../domain/leaderboard.js";
@@ -255,7 +256,7 @@ export class UserRepository {
   async claimWork(params: {
     userId: string;
     kind: WorkKind;
-    cooldownMs: number;
+    nextAvailableAt: (lastClaimedAt: number) => number;
     amount: number;
     now: number;
   }): Promise<ClaimResult> {
@@ -264,13 +265,13 @@ export class UserRepository {
     return this.mutate<ClaimResult>(params.userId, (row) => {
       const lastClaimedAt = row[column];
 
-      if (lastClaimedAt > 0 && params.now - lastClaimedAt < params.cooldownMs) {
+      if (isCooldownActive(lastClaimedAt, params.nextAvailableAt, params.now)) {
         return {
           patch: undefined,
           result: {
             ok: false,
             reason: "cooldown",
-            nextAt: lastClaimedAt + params.cooldownMs,
+            nextAt: params.nextAvailableAt(lastClaimedAt),
           },
         };
       }
@@ -324,20 +325,20 @@ export class UserRepository {
    */
   async claimDaily(params: {
     userId: string;
-    cooldownMs: number;
+    nextAvailableAt: (lastClaimedAt: number) => number;
     baseAmount: number;
     now: number;
   }): Promise<DailyClaimResult> {
     return this.mutate<DailyClaimResult>(params.userId, (row) => {
       const lastClaimedAt = row.daily_work_at;
 
-      if (lastClaimedAt > 0 && params.now - lastClaimedAt < params.cooldownMs) {
+      if (isCooldownActive(lastClaimedAt, params.nextAvailableAt, params.now)) {
         return {
           patch: undefined,
           result: {
             ok: false,
             reason: "cooldown",
-            nextAt: lastClaimedAt + params.cooldownMs,
+            nextAt: params.nextAvailableAt(lastClaimedAt),
           },
         };
       }

@@ -49,7 +49,7 @@ function createWorkCommand(kind: WorkKind): BotCommand {
       if (kind === "daily") {
         const daily = await ctx.users.claimDaily({
           userId: interaction.user.id,
-          cooldownMs: definition.cooldownMs,
+          nextAvailableAt: definition.nextAvailableAt,
           baseAmount: amount,
           now: ctx.clock.now(),
         });
@@ -90,7 +90,7 @@ function createWorkCommand(kind: WorkKind): BotCommand {
       const result = await ctx.users.claimWork({
         userId: interaction.user.id,
         kind,
-        cooldownMs: definition.cooldownMs,
+        nextAvailableAt: definition.nextAvailableAt,
         amount,
         now: ctx.clock.now(),
       });

@@ -12,12 +12,13 @@ describe("nextDailyStreak", () => {
     expect(nextDailyStreak(0, 0, 10 * DAY_MS)).toBe(1);
   });
 
-  it("continues when claimed within two days", () => {
-    expect(nextDailyStreak(DAY_MS, 4, DAY_MS + 30 * HOUR_MS)).toBe(5);
+  it("continues when the last claim was on the previous UTC day", () => {
+    expect(nextDailyStreak(DAY_MS, 4, 2 * DAY_MS + 23 * HOUR_MS)).toBe(5);
+    expect(nextDailyStreak(2 * DAY_MS - 1, 4, 2 * DAY_MS)).toBe(5);
   });
 
-  it("resets after two days without a claim", () => {
-    expect(nextDailyStreak(DAY_MS, 4, 3 * DAY_MS)).toBe(1);
+  it("resets when a whole UTC day was skipped", () => {
+    expect(nextDailyStreak(2 * DAY_MS - 1, 4, 3 * DAY_MS)).toBe(1);
   });
 });
 
